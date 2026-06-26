@@ -1,0 +1,7 @@
+{
+  "source_directories": ["/ABSOLUTE/PATH/TO/damn-vulnerable-llm-agent"],
+  "taint_models_path": ["projects/dvla"],
+  "search_path": [],
+  "exclude": [],
+  "strict": false
+}

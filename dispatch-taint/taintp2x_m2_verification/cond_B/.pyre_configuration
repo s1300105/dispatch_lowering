@@ -1,0 +1,14 @@
+{
+  "source_directories": [
+    "/home/yudai/Project/research/Master_Project/cross_tool_audit2/cross_tool_audit/taintp2x_m2_verification/cond_B/src"
+  ],
+  "taint_models_path": [
+    "/home/yudai/Project/research/Master_Project/cross_tool_audit2/TaintP2X/Taint_Propagation/taint",
+    "/home/yudai/Project/research/Master_Project/cross_tool_audit2/cross_tool_audit/taintp2x_m2_verification/cond_B/source"
+  ],
+  "search_path": [
+    "/home/yudai/Project/research/Master_Project/cross_tool_audit2/TaintP2X/Taint_Propagation/stubs"
+  ],
+  "typeshed": "/home/yudai/Project/research/Master_Project/cross_tool_audit2/cross_tool_audit/.venv/lib/pyre_check/typeshed",
+  "strict": false
+}

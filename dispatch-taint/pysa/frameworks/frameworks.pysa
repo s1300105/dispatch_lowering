@@ -1,0 +1,133 @@
+# ctaudit framework wiring as Pysa models.
+#
+# NOT LOADED BY DEFAULT. The bundled example run uses only ../models/, so this
+# file lives outside it to keep the example's `pyre analyze` verification clean.
+# To analyse a REAL project: (a) install the project's deps into the venv so
+# `langchain_core`/`mcp`/`agents`/`httpx`/your app resolve, then (b) add this
+# directory to `taint_models_path` in .pyre_configuration, e.g.
+#     "taint_models_path": ["models", "frameworks"]
+# and run `pyre validate-models` to fix any version-specific model syntax.
+#
+# THE KEY IDEA (how the novel control-dependency edge becomes Pysa data flow):
+#   * a tool's output is a TaintSource[ToolOutput];
+#   * the LLM call is a TaintInTaintOut from its prompt argument to its return
+#     value, tagged Via[llm_node].  This is the §4.4 "join at the LLM node":
+#     any tool-output taint on the prompt is carried onto the model's response,
+#     and Pysa's normal inter-procedural data flow then carries it to the sink.
+#   * the post-processor keeps only flows whose trace carries `llm_node` as the
+#     IMPLICIT (CWE-1426) findings; flows without it are explicit (verbatim) TITO.
+#
+# Because Pysa analyses the *whole call graph*, taint flowing through ordinary
+# helper/wrapper functions between the tool, the LLM, and the sink is tracked
+# automatically — this is exactly the general inter-procedural coverage the
+# standalone prototype lacked (limitation (2)).
+#
+# NOTE: the model-DSL (especially ModelQuery predicates) is version-sensitive.
+# Validate with `pyre validate-models` and adjust to your pyre-check version;
+# see https://pyre-check.org/docs/pysa-basics/ and .../pysa-model-dsl/ .
+
+# --------------------------------------------------------------------------- #
+# LLM nodes  ->  TaintInTaintOut tagged with the llm_node feature
+# (add the chat/agent entrypoints your codebase actually uses; run
+#  `setup_project.py --target <pkg>` to list the call sites in your project)
+# --------------------------------------------------------------------------- #
+# LangChain chat / completion models:
+def langchain_core.language_models.chat_models.BaseChatModel.invoke(self, input: TaintInTaintOut[Via[llm_node]]): ...
+def langchain_core.language_models.chat_models.BaseChatModel.ainvoke(self, input: TaintInTaintOut[Via[llm_node]]): ...
+def langchain_core.language_models.chat_models.BaseChatModel.stream(self, input: TaintInTaintOut[Via[llm_node]]): ...
+def langchain_core.language_models.chat_models.BaseChatModel.batch(self, inputs: TaintInTaintOut[Via[llm_node]]): ...
+def langchain_core.language_models.llms.BaseLLM.invoke(self, input: TaintInTaintOut[Via[llm_node]]): ...
+def langchain_core.language_models.llms.BaseLLM.ainvoke(self, input: TaintInTaintOut[Via[llm_node]]): ...
+
+# OpenAI Agents SDK: the Runner executes tools internally, so its result is
+# control-tainted by whatever the tools returned.
+def agents.run.Runner.run(self, starting_agent, input: TaintInTaintOut[Via[llm_node]]): ...
+def agents.run.Runner.run_sync(self, starting_agent, input: TaintInTaintOut[Via[llm_node]]): ...
+def agents.run.Runner.run_streamed(self, starting_agent, input: TaintInTaintOut[Via[llm_node]]): ...
+
+# MCP sampling: the client asks the host LLM to choose; treat the request as the
+# prompt and the created message as the (control-tainted) response.
+def mcp.server.session.ServerSession.create_message(self, messages: TaintInTaintOut[Via[llm_node]]): ...
+
+# Raw provider SDKs (uncomment the ones your project uses; module paths vary by
+# SDK version — confirm with `pyre validate-models`). These are for projects that
+# call the model directly instead of through a framework.
+# def anthropic.resources.messages.Messages.create(self, *args, messages: TaintInTaintOut[Via[llm_node]], **kwargs): ...
+# def anthropic.resources.messages.AsyncMessages.create(self, *args, messages: TaintInTaintOut[Via[llm_node]], **kwargs): ...
+# def openai.resources.chat.completions.Completions.create(self, *args, messages: TaintInTaintOut[Via[llm_node]], **kwargs): ...
+# def openai.resources.chat.completions.AsyncCompletions.create(self, *args, messages: TaintInTaintOut[Via[llm_node]], **kwargs): ...
+
+# --------------------------------------------------------------------------- #
+# Tool outputs  ->  sources
+# Explicit, stable entrypoints first; a decorator-based ModelQuery below covers
+# the @tool-decorated functions generically.
+# --------------------------------------------------------------------------- #
+def langchain_core.tools.BaseTool.run(self, *args, **kwargs) -> TaintSource[ToolOutput, Via[cap_string]]: ...
+def langchain_core.tools.BaseTool.invoke(self, *args, **kwargs) -> TaintSource[ToolOutput, Via[cap_string]]: ...
+
+# MCP tool-call / resource-read results are tool outputs.
+def mcp.client.session.ClientSession.call_tool(self, *args, **kwargs) -> TaintSource[ToolOutput, Via[cap_string]]: ...
+def mcp.client.session.ClientSession.read_resource(self, *args, **kwargs) -> TaintSource[ToolOutput, Via[cap_string]]: ...
+
+# Any function decorated with @tool is a source (LangChain / LangGraph style).
+# ModelQuery DSL varies by version; this is the common form — verify it.
+ModelQuery(
+    name = "decorated_tools_are_sources",
+    find = "functions",
+    where = [Decorator(name.matches("tool"))],
+    model = [Returns(TaintSource[ToolOutput, Via[cap_string]])],
+)
+
+# function_tool (OpenAI Agents) decorated functions are sources too.
+ModelQuery(
+    name = "function_tools_are_sources",
+    find = "functions",
+    where = [Decorator(name.matches("function_tool"))],
+    model = [Returns(TaintSource[ToolOutput, Via[cap_string]])],
+)
+
+# --------------------------------------------------------------------------- #
+# Dangerous sinks.
+#
+# RECOMMENDED: for the stdlib sinks (subprocess, os, sqlite3, requests, pickle,
+# yaml, …) use Pyre's *bundled* taint stubs, which already model the full ~236
+# sinks correctly for your exact typeshed version. Add their directory to
+# `taint_models_path` and either reuse their sink kinds in taint.config's rules
+# or keep ours. Hand-written stdlib signatures are brittle because Pyre verifies
+# them against typeshed (it rejects extra `*args/**kwargs` and a named `self`).
+#
+# The two below verified cleanly on pyre-check 0.9.25; the rest are commented out
+# with the form to start from — uncomment and adjust per your version (run
+# `pyre validate-models`), or rely on Pyre's bundled stubs instead.
+# --------------------------------------------------------------------------- #
+def subprocess.run(args: TaintSink[CodeExecution], *a, **k): ...
+def os.system(command: TaintSink[CodeExecution]): ...
+
+# builtins must be modeled WITHOUT the `builtins.` prefix:
+# def eval(__source: TaintSink[CodeExecution]): ...
+# def exec(__source: TaintSink[CodeExecution]): ...
+# def open(file: TaintSink[FileSystem]): ...
+
+# These need signatures matching your typeshed (no extra *args/**kwargs; methods
+# take no named `self`). Prefer Pyre's bundled stdlib taint stubs:
+# def subprocess.call(args: TaintSink[CodeExecution]): ...
+# def subprocess.Popen.__init__(args: TaintSink[CodeExecution]): ...
+# def os.popen(cmd: TaintSink[CodeExecution]): ...
+# def sqlite3.Cursor.execute(sql: TaintSink[SQL]): ...
+# def sqlite3.Cursor.executescript(sql: TaintSink[SQL]): ...
+# def requests.api.get(url: TaintSink[SSRF]): ...
+# def requests.api.post(url: TaintSink[SSRF]): ...
+# def urllib.request.urlopen(url: TaintSink[SSRF]): ...
+# def httpx.get(url: TaintSink[SSRF]): ...      # needs httpx installed
+# def os.remove(path: TaintSink[FileSystem]): ...
+# shutil.rmtree: TaintSink[FileSystem] = ...
+# def pickle.loads(__data: TaintSink[Deserialization]): ...
+# def yaml.load(stream: TaintSink[Deserialization]): ...
+
+# --------------------------------------------------------------------------- #
+# Selective hiding (§4.5(4) / FIDES HIDE)  ->  Sanitizer
+# A hide()/store-by-reference helper that returns an opaque $ref strips taint,
+# because the tool output is never expanded into the prompt text.  Point this at
+# your codebase's actual hiding helper(s); requires that module on the search path.
+# --------------------------------------------------------------------------- #
+# def your_app.security.hide(value) -> Sanitize: ...

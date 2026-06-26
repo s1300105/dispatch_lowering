@@ -1,0 +1,61 @@
+# Project-specific Pysa models for ReversecLabs/damn-vulnerable-llm-agent (DVLA).
+#
+# Loaded together with the taint.config in THIS directory (set
+# `taint_models_path: ["projects/dvla"]`), so the bundled example models are not
+# pulled in and verification stays clean against DVLA's source.
+#
+# WHAT DVLA LOOKS LIKE (from main.py / tools.py / transaction_db.py):
+#   * LLM        : langchain_litellm.ChatLiteLLM  (a BaseChatModel)
+#   * agent      : ConversationalChatAgent + AgentExecutor  (ReAct)
+#   * tools      : registered via Tool(func=get_current_user / get_transactions)
+#                  — NOT @tool-decorated, so the ModelQuery in frameworks.pysa
+#                  does not apply; we model the functions explicitly below.
+#   * dangerous  : TransactionDb.get_user_transactions builds RAW SQL by f-string
+#                  (`SELECT * FROM Transactions WHERE userId = '{userId}'`) and
+#                  runs it -> SQL sink. The userId is chosen by the agent.
+#
+# KEY POINT about real ReAct agents: the wiring "LLM output -> tool argument" is
+# performed INSIDE LangChain's AgentExecutor (it parses the model output into an
+# AgentAction and calls tool.run(tool_input)). None of that is in user code, so a
+# naive scan sees no `.invoke` and no `@tool`. To attribute the tool argument to
+# the LLM we therefore model the framework boundary (see LEVEL 2).
+
+# --------------------------------------------------------------------------- #
+# SQL sinks — DVLA's own DB-layer methods (user-defined methods verify cleanly;
+# we avoid hand-writing the stdlib sqlite3.Cursor.execute signature).
+# --------------------------------------------------------------------------- #
+def transaction_db.TransactionDb.get_user_transactions(self, userId: TaintSink[SQL]): ...
+def transaction_db.TransactionDb.get_user(self, user_id: TaintSink[SQL]): ...
+
+# --------------------------------------------------------------------------- #
+# Tool input as the taint source.
+#
+# LEVEL 1 (explicit SQL injection, CWE-89) — DEFAULT.
+#   Demonstrates the pipeline end-to-end on real code and the general
+#   inter-procedural flow (tools.get_transactions -> TransactionDb.get_user_-
+#   transactions across modules). The tool argument is attacker/LLM controllable.
+#   The resulting finding does NOT carry `llm_node`, so the post-processor
+#   classifies it as an explicit (verbatim) flow.
+def tools.get_transactions(userId: TaintSource[ToolOutput, Via[cap_string]]): ...
+
+# LEVEL 2 (implicit / cross-tool, CWE-1426) — comment LEVEL 1 above and use this.
+#   In a ReAct AgentExecutor the tool ARGUMENT is produced by the model and the
+#   dispatch is internal to LangChain. We model that boundary directly by tagging
+#   the tool input as LLM-routed (`Via[llm_node]`). A flow from here to the SQL
+#   sink is then reported as an IMPLICIT (control-dependency) flow. This is a
+#   deliberate modeling choice for framework-mediated agents; document it.
+# def tools.get_transactions(userId: TaintSource[ToolOutput, Via[llm_node]]): ...
+
+# tools.get_current_user returns user data; it calls get_user(1) with a constant,
+# so it introduces no attacker taint (kept here for completeness / negative case).
+# def tools.get_current_user(input) -> TaintSource[ToolOutput, Via[cap_string]]: ...
+
+# --------------------------------------------------------------------------- #
+# LEVEL 2 (advanced) — fully faithful threading through the LLM call.
+# If you want the flow to pass through the actual model call instead of asserting
+# llm_node at the tool boundary, model ChatLiteLLM as the LLM node:
+# def langchain_litellm.ChatLiteLLM.invoke(self, input: TaintInTaintOut[Via[llm_node]]): ...
+# NOTE: connecting the model's output to the tool function's argument still
+# requires modeling LangChain's AgentExecutor -> Tool.run -> func dispatch (the
+# §4.2 "bridge"), which is higher-order and version-sensitive. Validate with
+# `pyre validate-models` and iterate.

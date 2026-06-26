@@ -1,0 +1,8 @@
+# --- SecurityNik/MCP-Stuff on the UNMODIFIED real mcp library: source declaration ---
+# Source = the REAL dispatch entry: FastMCP.call_tool's tool-call arguments are
+# attacker-controlled (client/agent-supplied, prompt-injection-influenceable).
+# Propagates through the unmodified real async chain:
+#   FastMCP.call_tool -> ToolManager.call_tool -> Tool.run
+#   -> FuncMetadata.call_fn_with_arg_validation -> fn(**arguments_parsed_dict) [WALL]
+# Sinks inherited from host TaintP2X (subprocess.* -> RCE/ExecArgSink; open -> FileSystem_ReadWrite).
+def mcp.server.fastmcp.server.FastMCP.call_tool(self, name, arguments: TaintSource[LLMControlled]): ...

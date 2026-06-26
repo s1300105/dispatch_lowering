@@ -1,0 +1,15 @@
+{
+  "source_directories": [
+    "/home/yudai/Project/research/Master_Project/dispatch-taint-system/dispatch-taint/taintp2x_m2_verification/ablation_check/src"
+  ],
+  "taint_models_path": [
+    "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint",
+    "/home/yudai/Project/research/Master_Project/dispatch-taint-system/dispatch-taint/taintp2x_m2_verification/ablation_check/source"
+  ],
+  "search_path": [
+    "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/stubs",
+    "/home/yudai/Project/research/Master_Project/dispatch-taint-system/.venv/lib/python3.10/site-packages"
+  ],
+  "typeshed": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/.venv/lib/pyre_check/typeshed",
+  "strict": false
+}

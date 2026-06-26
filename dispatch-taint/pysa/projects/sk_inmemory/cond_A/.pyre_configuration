@@ -1,0 +1,12 @@
+{
+  "source_directories": [
+    "."
+  ],
+  "taint_models_path": [
+    "models"
+  ],
+  "search_path": [],
+  "typeshed": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/.venv/lib/pyre_check/typeshed",
+  "exclude": [],
+  "strict": false
+}

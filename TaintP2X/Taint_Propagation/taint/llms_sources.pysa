@@ -1,0 +1,557 @@
+# 商业大模型 API 调用库
+
+# 定义 OpenAI 的模型输出为 Source
+def openai.OpenAI.chat.completions.create(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def openai.ChatCompletion.create(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def openai.createChatCompletion(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def openai.AsyncOpenAI.chat.completions.create(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def openai.AsyncAzureOpenAI.chat.completions.create(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def openai.AsyncChatCompletion.create(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def openai.createChatCompletionAsync(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def openai.ChatCompletion.acreate(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+# 定义 zhipuai 的模型输出为 Source
+def zhipuai.ZhipuAI.chat.completions.create(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def zhipuai.ZhipuAI.chat.completions.create_async(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+# 定义 anthropic 的模型输出为 Source
+def anthropic.Anthropic.messages.create(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def anthropic.AsyncAnthropic.messages.create(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def anthropic.Anthropic.completions.create(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def anthropic.AsyncAnthropic.completions.create(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+# gemini
+
+def google.generativeai.GenerativeModel.generate_content(
+    prompt,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def google.generativeai.GenerativeModel.generate_content_async(
+    prompt,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def google.generativeai.generate_text(
+    prompt,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def google.generativeai.generate_text_async(
+    prompt,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+# 定义 mistralai 的模型输出为 Source
+def mistralai.client.MistralClient.chat(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def mistralai.Mistral.chat.complete(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def mistralai.Mistral.chat.completions.create(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def mistralai.AsyncMistral.chat.completions.create(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def mistralai.AsyncMistral.chat.completions.create(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def mistralai.Mistral.code.completions.create(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def mistralai.AsyncMistral.code.completions.create(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+# cohere
+
+def cohere.ClientV2.chat(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def cohere.ClientV2.chat_stream(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def cohere.Client.chat(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+# groq
+
+def groq.Groq.chat.completions.create(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def groq.AsyncGroq.chat.completions.create(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def azure.cognitiveservices.language.conversations.ConversationAPI.conversations.generate_message(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def together.Together.completions.create(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def together.AsyncTogether.async_completions.create(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def fireworks.client.ChatCompletion.create(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def fireworks.LLM.chat.completions.create(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def fireworks.client.Completion.create(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def fireworks.LLM.chat.completions.acreate(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def replicate.run(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def replicate.async_run(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def dashscope.AsyncGeneration.call(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def dashscope.Generation.call(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def cerebras.cloud.sdk.Cerebras.chat.completions.create(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def cerebras.cloud.sdk.AsyncCerebras.chat.completions.create(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def cohere.Client.chat_stream(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def google.genai.GenerativeModel.generate_content(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def google.genai.GenerativeModel.generate_content_async(
+    query,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+# 定义可能通过第三方库去调用LLM
+def portkey_ai.Portkey.chat.completions.create(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def litellm.completion(
+    model,
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+# langchain
+
+def langchain.llms.openai.OpenAIChat._generate(
+    self, 
+    prompts, 
+    stop
+) -> TaintSource[LLMControlled]: ...
+
+def langchain.chains.base.Chain.invoke(
+    self, 
+    input, 
+    config,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def langchain.chat_models.init_chat_model.invoke(
+    self, 
+    input
+) -> TaintSource[LLMControlled]: ...
+
+def langchain_openai.AzureChatOpenAI.invoke(
+    self, 
+    input
+) -> TaintSource[LLMControlled]: ...
+
+def langchain_ibm.ChatWatsonx.invoke(
+    self, 
+    input
+) -> TaintSource[LLMControlled]: ...
+
+def databricks_langchain.ChatDatabricks.invoke(
+    self, 
+    input
+) -> TaintSource[LLMControlled]: ...
+
+# llama_index
+
+def llama_index.llms.openai.OpenAI.chat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.llms.replicate.Replicate.chat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.llms.huggingface.HuggingFaceLLM.chat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.llms.ollama.Ollama.chat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.llms.openai.OpenAI.stream_chat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.llms.replicate.Replicate.stream_chat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.llms.huggingface.HuggingFaceLLM.stream_chat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.llms.ollama.Ollama.stream_chat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.llms.openai.OpenAI.complete(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.llms.replicate.Replicate.complete(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.llms.huggingface.HuggingFaceLLM.complete(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.llms.ollama.Ollama.complete(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.llms.openai.OpenAI.achat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.llms.replicate.Replicate.achat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.llms.huggingface.HuggingFaceLLM.achat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.llms.ollama.Ollama.achat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.core.VectorStoreIndex.from_documents.as_chat_engine.chat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.core.VectorStoreIndex.from_documents.as_chat_engine.stream_chat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.core.VectorStoreIndex.from_documents.as_chat_engine.query(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.VectorStoreIndex.from_documents.as_chat_engine.chat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.VectorStoreIndex.from_documents.as_chat_engine.stream_chat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_indexs.VectorStoreIndex.from_documents.as_chat_engine.query(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.core.llms.llm.LLM.predict(
+    *args
+) -> TaintSource[LLMControlled]: ...
+
+def llama_index.llm_predictor.base.LLMPredictor.predict(
+    *args
+) -> TaintSource[LLMControlled]: ...
+
+# autogpt
+
+def autogpt.agent.Agent.chat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+# metagpt
+
+def metagpt.llm.LLM.chat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def metagpt.roles.DialogueAgent.run(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def metagpt.environment.Environment.publish_message(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def metagpt.environment.Environment.run(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+# autogen
+
+def autogen.UserProxyAgent.initiate_chat(
+    self, 
+    messages,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+# babyagi 
+
+def babyagi.BabyAGI.run(
+    self
+) -> TaintSource[LLMControlled]: ...
+
+def babyagi.Task.execute(
+    self
+) -> TaintSource[LLMControlled]: ...
+
+# Semantic Kernel
+
+def semantic_kernel.Kernel.invoke_prompt(
+    self, 
+    prompt,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def semantic_kernel.Kernel.invoke_function(
+    self, 
+    prompt,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def semantic_kernel.agents.Team.solve_task(
+    self, 
+    prompt,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+# Haystack
+
+def haystack.components.generators.OpenAIGenerator.run(
+    self, 
+    prompt,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def haystack.components.generators.OllamaGenerator.run(
+    self, 
+    prompt,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def haystack.components.generators.HuggingFaceTGIGenerator.run(
+    self, 
+    prompt,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def haystack.Pipeline.run(
+    self, 
+    prompt,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+
+def haystack.agents.Agent.run(
+    self, 
+    prompt,
+    **kwargs
+) -> TaintSource[LLMControlled]: ...
+

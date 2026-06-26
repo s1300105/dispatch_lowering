@@ -1,0 +1,8 @@
+{
+  "source_directories": ["src"],
+  "taint_models_path": ["/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint", "models"],
+  "search_path": ["/home/yudai/Project/research/Master_Project/dispatch-taint-system/dispatch-taint/pysa/projects/sk_real/cond_subset/stubs_min", "/home/yudai/Project/research/Master_Project/dispatch-taint-system/dispatch-taint/pysa/projects/sk_real/cond_subset/deps_iso"],
+  "typeshed": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/.venv/lib/pyre_check/typeshed",
+  "exclude": [".*/tests/.*", ".*/samples/.*"],
+  "strict": false
+}

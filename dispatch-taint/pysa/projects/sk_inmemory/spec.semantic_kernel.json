@@ -1,0 +1,8 @@
+{
+  "tool_list_names": ["functions"],
+  "resolver_hints": ["get_function"],
+  "detect_subscript": false,
+  "detect_getattr": false,
+  "detect_higher_order": true,
+  "insert_before": true
+}

@@ -1,0 +1,7 @@
+{
+  "source_directories": ["example"],
+  "taint_models_path": ["models"],
+  "search_path": [],
+  "exclude": [],
+  "strict": false
+}

@@ -1,0 +1,7 @@
+# Pysa is the taint-analysis mode of Pyre.
+pyre-check>=0.9.18
+# Optional: only needed for `postprocess.py --triage anthropic`.
+anthropic>=0.39
+# Recommended system dependency (not pip-installable): watchman
+#   macOS:  brew install watchman
+#   Linux:  see https://facebook.github.io/watchman/docs/install

@@ -1,0 +1,37 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# ===== 仮想環境（604M・pip で再生成可能） =====
+.venv/
+venv/
+env/
+**/site-packages/
+
+# ===== pyre / Pysa キャッシュ =====
+.pyre/
+.pyre_cache/
+
+# ===== Pysa 解析結果（再生成可能・巨大: ablation_check/r=101M, cond_*/r=各40M） =====
+**/r/
+ablation_out/
+*.log
+
+# ===== ただし検出結果の証拠バックアップは追跡する（A: 論文の証拠） =====
+
+# ===== バックアップ・一時 =====
+*.bak
+*.bak_*
+*.FINAL_*
+*~
+*.tmp
+*.swp
+
+# ===== OS / エディタ =====
+.DS_Store
+.idea/
+.vscode/
+*.code-workspace

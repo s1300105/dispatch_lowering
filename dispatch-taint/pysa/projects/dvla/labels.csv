@@ -1,0 +1,3 @@
+repo,source_tool,sink_tool,sink_category,label,basis,notes
+dvla,tools.get_transactions,transaction_db.TransactionDb.get_user_transactions,sql,1,ctf-flag,"flag1: agent steered to query userId=2 (other user's rows incl. FLAG:plutonium-256); flag2: SQL injection via the f-string in the userId argument yields DocBrown's password. Both route the LLM-chosen userId into the SQL sink."
+dvla,tools.get_current_user,transaction_db.TransactionDb.get_user,sql,0,manual,"get_current_user calls get_user(1) with a constant userId; not attacker-influenced, so reaching the SQL sink here is not a vulnerability (expected negative / no finding)."

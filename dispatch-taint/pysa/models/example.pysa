@@ -1,0 +1,15 @@
+# Models for the self-contained example target (pysa/example/agent.py).
+# These mirror what frameworks.pysa does for real libraries, but point at the
+# example's own functions so the toolchain can be validated with zero deps.
+
+# tool output -> source
+def agent.read_ticket() -> TaintSource[ToolOutput, Via[cap_string]]: ...
+
+# LLM node -> TaintInTaintOut tagged llm_node (the §4.4 join)
+def agent.call_model(prompt: TaintInTaintOut[Via[llm_node]]): ...
+
+# dangerous sink
+def agent.run_command(decision: TaintSink[CodeExecution]): ...
+
+# NOTE: summarize() and build_request() are deliberately NOT modeled — Pysa
+# propagates taint through them automatically (general inter-procedural flow).

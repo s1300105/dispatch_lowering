@@ -1,0 +1,13 @@
+# --- per-target source/sink declaration -------------------------------------
+# Sinks come from the host TaintP2X catalog ($TP2X/taint): RemoteCodeExecution,
+# ExecArgSink, SQL, SSRFSink, FileSystem_ReadWrite, ExecDeserializationSink, ...
+# So usually you only declare the SOURCE here: the entrypoint parameter that
+# receives untrusted input. Reuse the existing source kind 'LLMControlled' as a
+# generic "attacker-controlled" label so the host rules (LLMControlled -> sink)
+# fire without editing taint.config.
+#
+# Replace the signature below with your target's real untrusted-input entrypoint.
+def myapp.web.handle_request(self, request: TaintSource[LLMControlled]): ...
+#
+# Declare an extra sink ONLY if the host catalog doesn't already cover it, e.g.:
+# def myapp.db.raw_query(sql: TaintSink[SQL]): ...

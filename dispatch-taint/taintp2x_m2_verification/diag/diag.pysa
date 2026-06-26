@@ -1,0 +1,9 @@
+# DIAGNOSTIC source + taint probes.
+# Source: the REAL dispatch entry (MCP tool-call arguments are attacker-controlled).
+def diag_dispatch.ToolManager.call_tool(self, name, arguments: TaintSource[LLMControlled]): ...
+# Probes as sinks, reusing host sink kinds that have LLMControlled rules. Distinct,
+# non-overlapping codes the real tools never emit:
+#   _probe_A_callfn_entry -> SSRFSink (5015): taint survived call_tool->run->call_fn hops
+#   _probe_B_post_pydantic -> SQL    (5008): taint survived pydantic validate+dump
+def diag_dispatch._probe_A_callfn_entry(x: TaintSink[SSRFSink]): ...
+def diag_dispatch._probe_B_post_pydantic(x: TaintSink[SQL]): ...

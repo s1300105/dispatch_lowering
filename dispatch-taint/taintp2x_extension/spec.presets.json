@@ -1,0 +1,35 @@
+{
+  "_note": "Each preset is a complete LoweringSpec dict. Copy the one matching your target into SPEC_JSON for run_ablation.sh. Presence of any general key opts into general mode; the autogpt preset uses the legacy keys and is byte-identical to the original.",
+
+  "autogpt_legacy": {
+    "tool_decorator": "command",
+    "dispatch_resolver_hint": "command"
+  },
+
+  "fastmcp": {
+    "tool_decorators": ["tool"],
+    "register_methods": ["add_tool"],
+    "detect_subscript": true,
+    "detect_getattr": true,
+    "detect_higher_order": true
+  },
+
+  "langchain": {
+    "tool_decorators": ["tool"],
+    "tool_list_names": ["tools"],
+    "tool_wrappers": ["Tool", "StructuredTool", "FunctionTool"],
+    "register_methods": ["add_tool", "register"]
+  },
+
+  "openai_agents": {
+    "tool_decorators": ["function_tool"],
+    "tool_list_names": ["tools"],
+    "tool_wrappers": ["FunctionTool"]
+  },
+
+  "register_runtime": {
+    "register_methods": ["register", "register_function", "add_tool", "add_function"],
+    "tool_wrappers": ["Tool", "StructuredTool", "FunctionTool"],
+    "registry_vars": ["TOOLS", "REGISTRY", "FUNCTIONS"]
+  }
+}

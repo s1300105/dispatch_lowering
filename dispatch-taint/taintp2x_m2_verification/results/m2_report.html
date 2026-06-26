@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TaintP2X M2 Verification Report</title><style>:root{--bg:#0b1120;--panel:#111827;--line:#1f2937;--text:#e2e8f0;--muted:#94a3b8;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+ font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
+header{padding:26px 32px;border-bottom:1px solid var(--line)}
+h1{margin:0 0 4px;font-size:20px}.sub{color:var(--muted);font-size:13px}
+main{padding:22px 32px;max-width:1180px;margin:0 auto}
+.summary{margin:6px 0 20px}
+.chips{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;
+ font-weight:600;color:#fff;white-space:nowrap}
+.compare{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:24px}
+.cond{flex:1;min-width:220px;background:var(--panel);border:1px solid var(--line);
+ border-radius:12px;padding:16px 20px}
+.cond h3{margin:0 0 8px;font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.cond-count{font-size:36px;font-weight:700;font-variant-numeric:tabular-nums}
+.cond-note{font-size:12px;color:var(--muted);margin-top:4px}
+h2{font-size:14px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+ margin:30px 0 12px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.overview{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+ padding:18px;overflow:auto}
+.card{background:var(--panel);border:1px solid var(--line);border-left-width:4px;
+ border-radius:12px;margin:14px 0;overflow:hidden}
+.card-head{padding:13px 18px;border-bottom:1px solid var(--line)}
+.card-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:600}
+.idx{color:var(--muted);font-variant-numeric:tabular-nums}
+.path{margin-top:10px;display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:11px}
+.wp{padding:2px 8px;border-radius:6px;border:1px solid var(--line);white-space:nowrap}
+.wp .wpd{color:var(--muted);font-size:10px}
+.wp-source{background:#1e293b;border-color:#64748b}
+.wp-llm{background:#312e81;border-color:#818cf8;color:#e0e7ff}
+.wp-dispatch{background:#7c2d12;border-color:#fb923c;color:#ffedd5}
+.wp-sink{background:#7f1d1d;border-color:#fecaca;color:#fff}
+.wpedge{color:var(--muted);font-size:10px}
+.card-body{display:grid;grid-template-columns:minmax(360px,1fr) minmax(360px,1fr)}
+@media(max-width:860px){.card-body{grid-template-columns:1fr}}
+.meta{padding:15px 18px;border-right:1px solid var(--line)}
+@media(max-width:860px){.meta{border-right:none;border-bottom:1px solid var(--line)}}
+.row{display:grid;grid-template-columns:130px 1fr;gap:10px;padding:5px 0;
+ border-bottom:1px dashed var(--line);font-size:13px}.row:last-child{border-bottom:none}
+.k{color:var(--muted)}
+.v code{background:#0b1220;padding:1px 6px;border-radius:5px;font-size:12px;
+ color:#cbd5e1;word-break:break-all}
+.v code.trace{display:block;padding:8px;white-space:pre-wrap;line-height:1.5}
+.muted{color:var(--muted)}
+.diagram{padding:14px 18px;display:flex;align-items:center;justify-content:flex-start;
+ background:#0b1220;overflow:auto;min-height:220px}
+.mermaid{margin:0;min-width:520px}
+.mermaid svg{max-width:none!important;height:auto}
+footer{padding:18px 32px;color:var(--muted);font-size:12px;border-top:1px solid var(--line)}
+</style></head><body>
+<header>
+  <h1>TaintP2X M2 Verification Report</h1>
+  <div class="sub">dispatch_lowering の有無による Pysa 検出数の比較（AutoGPT v0.5.0）</div>
+</header>
+<main>
+  <div class="compare">
+  <div class="cond">
+    <h3>Condition A &mdash; no lowering</h3>
+    <div class="cond-count" style="color:#4ade80">0</div>
+    <div class="cond-note">issues found (dispatch wall opaque to Pysa)</div>
+  </div>
+  <div class="cond">
+    <h3>Condition B &mdash; with lowering</h3>
+    <div class="cond-count" style="color:#f87171">7</div>
+    <div class="cond-note">issues found after dispatch_lowering</div>
+  </div>
+</div>
+<div class="summary">
+  <strong>7</strong> issue(s) detected in cond_B
+  <div class="chips"><span class="badge" style="background:#c2410c">ExecArgSink: 4</span><span class="badge" style="background:#b91c1c">RemoteCodeExecution: 3</span><span class="badge" style="background:#7c2d12">via CodeExecutorComponent.execute_python_file: 4</span><span class="badge" style="background:#7c2d12">via CodeExecutorComponent.execute_shell: 2</span><span class="badge" style="background:#7c2d12">via CodeExecutorComponent.execute_shell_popen: 1</span></div>
+</div>
+  <h2>Influence overview &mdash; source &rarr; LLM &rarr; dispatch &rarr; sink</h2>
+  <div class="overview"><pre class="mermaid">
+flowchart LR
+  LLM{{&quot;LLM join&quot;}}
+  SRC0[&quot;Agent._execute_tool&lt;br/&gt;&lt;small&gt;LLMControlled&lt;/small&gt;&quot;]
+  style SRC0 fill:#1e293b,stroke:#64748b,color:#e2e8f0
+  SNK0[[&quot;subprocess.Popen.__init__&lt;br/&gt;&lt;small&gt;ExecArgSink&lt;/small&gt;&quot;]]
+  style SNK0 fill:#c2410c,stroke:#fecaca,color:#fff
+  D0([&quot;dispatch&lt;br/&gt;&lt;small&gt;CodeExecutorComponent.execute_shell_popen&lt;/small&gt;&quot;])
+  style D0 fill:#7c2d12,stroke:#fb923c,color:#ffedd5
+  SNK1[[&quot;subprocess.run&lt;br/&gt;&lt;small&gt;ExecArgSink&lt;/small&gt;&quot;]]
+  style SNK1 fill:#c2410c,stroke:#fecaca,color:#fff
+  D1([&quot;dispatch&lt;br/&gt;&lt;small&gt;CodeExecutorComponent.execute_shell&lt;/small&gt;&quot;])
+  style D1 fill:#7c2d12,stroke:#fb923c,color:#ffedd5
+  D2([&quot;dispatch&lt;br/&gt;&lt;small&gt;CodeExecutorComponent.execute_python_file&lt;/small&gt;&quot;])
+  style D2 fill:#7c2d12,stroke:#fb923c,color:#ffedd5
+  SNK2[[&quot;subprocess.run&lt;br/&gt;&lt;small&gt;RemoteCodeExecution&lt;/small&gt;&quot;]]
+  style SNK2 fill:#b91c1c,stroke:#fecaca,color:#fff
+  SRC0 ==&gt; LLM
+  LLM ==&gt; D0
+  D0 ==&gt; SNK0
+  LLM ==&gt; D1
+  D1 ==&gt; SNK1
+  LLM ==&gt; D2
+  D2 ==&gt; SNK1
+  D1 ==&gt; SNK2
+  D2 ==&gt; SNK2
+  linkStyle 0 stroke:#60a5fa,stroke-width:2px
+  linkStyle 1 stroke:#60a5fa,stroke-width:2px
+  linkStyle 2 stroke:#60a5fa,stroke-width:2px
+  linkStyle 3 stroke:#f472b6,stroke-width:2px
+  linkStyle 4 stroke:#f472b6,stroke-width:2px
+  linkStyle 5 stroke:#34d399,stroke-width:2px
+  linkStyle 6 stroke:#34d399,stroke-width:2px
+  linkStyle 7 stroke:#a78bfa,stroke-width:2px
+  linkStyle 8 stroke:#fb7185,stroke-width:2px
+  style LLM fill:#312e81,stroke:#818cf8,color:#e0e7ff
+  </pre></div>
+  <h2>Findings &mdash; cond_B（lowering あり）全 7 件</h2>
+  <section class="card" style="border-left-color:#c2410c">
+  <div class="card-head">
+    <div class="card-title">
+      <span class="idx">#1</span>
+      User specified data may reach a code execution sink
+      <span class="badge" style="background:#c2410c">code 5005</span>
+      <span class="badge" style="background:#c2410c">ExecArgSink</span>
+    </div>
+    <div class="path"><span class="wp wp-source">Agent._execute_tool <span class="wpd">LLMControlled</span></span><span class="wpedge">history▸</span><span class="wp wp-llm">LLM join <span class="wpd">Agent._execute_tool :265</span></span><span class="wpedge">tool_calls▸</span><span class="wp wp-dispatch">dispatch ▸ CodeExecutorComponent.execute_shell_popen <span class="wpd">src/agent.py:282</span></span><span class="wpedge">▸</span><span class="wp wp-sink">subprocess.Popen.__init__ <span class="wpd">ExecArgSink</span></span></div>
+  </div>
+  <div class="card-body">
+    <div class="meta"><div class="row"><div class="k">source</div><div class="v"><code>agent.Agent._execute_tool</code> <span class='muted'>(LLMControlled)</span> @ line 265</div></div>
+<div class="row"><div class="k">port</div><div class="v"><code>leaf:tool_call</code></div></div>
+<div class="row"><div class="k">callable</div><div class="v"><code>agent.Agent._execute_tool</code> <span class='muted'>@ line 265</span></div></div>
+<div class="row"><div class="k">dispatch→</div><div class="v"><code>forge.components.code_executor.code_executor.CodeExecutorComponent.execute_shell_popen</code> <span class='muted'>@ src/agent.py:282</span></div></div>
+<div class="row"><div class="k">sink</div><div class="v"><code>subprocess.Popen.__init__</code> <span class='muted'>(ExecArgSink)</span></div></div>
+<div class="row"><div class="k">sink port</div><div class="v"><code>leaf:args</code></div></div>
+<div class="row"><div class="k">features</div><div class="v"><span class='muted'>has:first-field, first-field:arguments, always-via-shell-value:&lt;unknown:named&gt;, always-via-type:typing.Any, via:obscure:model, via:tito</span></div></div></div>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+  i0_n0[&quot;agent.Agent._execute_tool&lt;br/&gt;&lt;small&gt;leaf:tool_call @ line 265&lt;/small&gt;&quot;]
+  i0_n1{{&quot;LLM join&lt;br/&gt;&lt;small&gt;Agent._execute_tool @ src/agent.py:265&lt;/small&gt;&quot;}}
+  i0_n2([&quot;dispatch ▸ CodeExecutorComponent.execute_shell_popen&lt;br/&gt;&lt;small&gt;src/agent.py:282&lt;/small&gt;&quot;])
+  i0_n3[[&quot;subprocess.Popen.__init__&lt;br/&gt;&lt;small&gt;ExecArgSink · leaf:args&lt;/small&gt;&quot;]]
+  i0_n0 ==history==&gt; i0_n1
+  i0_n1 ==tool_calls==&gt; i0_n2
+  i0_n2 ==&gt; i0_n3
+  style i0_n0 fill:#1e293b,stroke:#64748b,color:#e2e8f0
+  style i0_n1 fill:#312e81,stroke:#818cf8,color:#e0e7ff
+  style i0_n2 fill:#7c2d12,stroke:#fb923c,color:#ffedd5
+  style i0_n3 fill:#c2410c,stroke:#fecaca,color:#ffffff
+    </pre></div>
+  </div>
+</section>
+<section class="card" style="border-left-color:#c2410c">
+  <div class="card-head">
+    <div class="card-title">
+      <span class="idx">#2</span>
+      User specified data may reach a code execution sink
+      <span class="badge" style="background:#c2410c">code 5005</span>
+      <span class="badge" style="background:#c2410c">ExecArgSink</span>
+    </div>
+    <div class="path"><span class="wp wp-source">Agent._execute_tool <span class="wpd">LLMControlled</span></span><span class="wpedge">history▸</span><span class="wp wp-llm">LLM join <span class="wpd">Agent._execute_tool :265</span></span><span class="wpedge">tool_calls▸</span><span class="wp wp-dispatch">dispatch ▸ CodeExecutorComponent.execute_shell <span class="wpd">src/agent.py:281</span></span><span class="wpedge">▸</span><span class="wp wp-sink">subprocess.run <span class="wpd">ExecArgSink</span></span></div>
+  </div>
+  <div class="card-body">
+    <div class="meta"><div class="row"><div class="k">source</div><div class="v"><code>agent.Agent._execute_tool</code> <span class='muted'>(LLMControlled)</span> @ line 265</div></div>
+<div class="row"><div class="k">port</div><div class="v"><code>leaf:tool_call</code></div></div>
+<div class="row"><div class="k">callable</div><div class="v"><code>agent.Agent._execute_tool</code> <span class='muted'>@ line 265</span></div></div>
+<div class="row"><div class="k">dispatch→</div><div class="v"><code>forge.components.code_executor.code_executor.CodeExecutorComponent.execute_shell</code> <span class='muted'>@ src/agent.py:281</span></div></div>
+<div class="row"><div class="k">sink</div><div class="v"><code>subprocess.run</code> <span class='muted'>(ExecArgSink)</span></div></div>
+<div class="row"><div class="k">sink port</div><div class="v"><code>leaf:args</code></div></div>
+<div class="row"><div class="k">features</div><div class="v"><span class='muted'>has:first-field, first-field:arguments, always-via-shell-value:&lt;unknown:named&gt;, always-via-type:typing.Any, via:obscure:model, via:tito</span></div></div></div>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+  i1_n0[&quot;agent.Agent._execute_tool&lt;br/&gt;&lt;small&gt;leaf:tool_call @ line 265&lt;/small&gt;&quot;]
+  i1_n1{{&quot;LLM join&lt;br/&gt;&lt;small&gt;Agent._execute_tool @ src/agent.py:265&lt;/small&gt;&quot;}}
+  i1_n2([&quot;dispatch ▸ CodeExecutorComponent.execute_shell&lt;br/&gt;&lt;small&gt;src/agent.py:281&lt;/small&gt;&quot;])
+  i1_n3[[&quot;subprocess.run&lt;br/&gt;&lt;small&gt;ExecArgSink · leaf:args&lt;/small&gt;&quot;]]
+  i1_n0 ==history==&gt; i1_n1
+  i1_n1 ==tool_calls==&gt; i1_n2
+  i1_n2 ==&gt; i1_n3
+  style i1_n0 fill:#1e293b,stroke:#64748b,color:#e2e8f0
+  style i1_n1 fill:#312e81,stroke:#818cf8,color:#e0e7ff
+  style i1_n2 fill:#7c2d12,stroke:#fb923c,color:#ffedd5
+  style i1_n3 fill:#c2410c,stroke:#fecaca,color:#ffffff
+    </pre></div>
+  </div>
+</section>
+<section class="card" style="border-left-color:#c2410c">
+  <div class="card-head">
+    <div class="card-title">
+      <span class="idx">#3</span>
+      User specified data may reach a code execution sink
+      <span class="badge" style="background:#c2410c">code 5005</span>
+      <span class="badge" style="background:#c2410c">ExecArgSink</span>
+    </div>
+    <div class="path"><span class="wp wp-source">Agent._execute_tool <span class="wpd">LLMControlled</span></span><span class="wpedge">history▸</span><span class="wp wp-llm">LLM join <span class="wpd">Agent._execute_tool :265</span></span><span class="wpedge">tool_calls▸</span><span class="wp wp-dispatch">dispatch ▸ CodeExecutorComponent.execute_python_file <span class="wpd">src/agent.py:280</span></span><span class="wpedge">▸</span><span class="wp wp-sink">subprocess.run <span class="wpd">ExecArgSink</span></span></div>
+  </div>
+  <div class="card-body">
+    <div class="meta"><div class="row"><div class="k">source</div><div class="v"><code>agent.Agent._execute_tool</code> <span class='muted'>(LLMControlled)</span> @ line 265</div></div>
+<div class="row"><div class="k">port</div><div class="v"><code>leaf:tool_call</code></div></div>
+<div class="row"><div class="k">callable</div><div class="v"><code>agent.Agent._execute_tool</code> <span class='muted'>@ line 265</span></div></div>
+<div class="row"><div class="k">dispatch→</div><div class="v"><code>forge.components.code_executor.code_executor.CodeExecutorComponent.execute_python_file</code> <span class='muted'>@ src/agent.py:280</span></div></div>
+<div class="row"><div class="k">sink</div><div class="v"><code>subprocess.run</code> <span class='muted'>(ExecArgSink)</span></div></div>
+<div class="row"><div class="k">sink port</div><div class="v"><code>leaf:args</code></div></div>
+<div class="row"><div class="k">features</div><div class="v"><span class='muted'>has:first-field, first-field:arguments, always-via-type:typing.List[typing.Any], always-via-shell-value:&lt;missing&gt;, always-via:obscure:model, always-via:tito-broadening, always-via:tito, always-via:broadening, always-via:obscure:unknown-callee</span></div></div></div>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+  i2_n0[&quot;agent.Agent._execute_tool&lt;br/&gt;&lt;small&gt;leaf:tool_call @ line 265&lt;/small&gt;&quot;]
+  i2_n1{{&quot;LLM join&lt;br/&gt;&lt;small&gt;Agent._execute_tool @ src/agent.py:265&lt;/small&gt;&quot;}}
+  i2_n2([&quot;dispatch ▸ CodeExecutorComponent.execute_python_file&lt;br/&gt;&lt;small&gt;src/agent.py:280&lt;/small&gt;&quot;])
+  i2_n3[[&quot;subprocess.run&lt;br/&gt;&lt;small&gt;ExecArgSink · leaf:args&lt;/small&gt;&quot;]]
+  i2_n0 ==history==&gt; i2_n1
+  i2_n1 ==tool_calls==&gt; i2_n2
+  i2_n2 ==&gt; i2_n3
+  style i2_n0 fill:#1e293b,stroke:#64748b,color:#e2e8f0
+  style i2_n1 fill:#312e81,stroke:#818cf8,color:#e0e7ff
+  style i2_n2 fill:#7c2d12,stroke:#fb923c,color:#ffedd5
+  style i2_n3 fill:#c2410c,stroke:#fecaca,color:#ffffff
+    </pre></div>
+  </div>
+</section>
+<section class="card" style="border-left-color:#c2410c">
+  <div class="card-head">
+    <div class="card-title">
+      <span class="idx">#4</span>
+      User specified data may reach a code execution sink
+      <span class="badge" style="background:#c2410c">code 5005</span>
+      <span class="badge" style="background:#c2410c">ExecArgSink</span>
+    </div>
+    <div class="path"><span class="wp wp-source">Agent._execute_tool <span class="wpd">LLMControlled</span></span><span class="wpedge">history▸</span><span class="wp wp-llm">LLM join <span class="wpd">Agent._execute_tool :265</span></span><span class="wpedge">tool_calls▸</span><span class="wp wp-dispatch">dispatch ▸ CodeExecutorComponent.execute_python_file <span class="wpd">src/agent.py:280</span></span><span class="wpedge">▸</span><span class="wp wp-sink">subprocess.run <span class="wpd">ExecArgSink</span></span></div>
+  </div>
+  <div class="card-body">
+    <div class="meta"><div class="row"><div class="k">source</div><div class="v"><code>agent.Agent._execute_tool</code> <span class='muted'>(LLMControlled)</span> @ line 265</div></div>
+<div class="row"><div class="k">port</div><div class="v"><code>leaf:tool_call</code></div></div>
+<div class="row"><div class="k">callable</div><div class="v"><code>agent.Agent._execute_tool</code> <span class='muted'>@ line 265</span></div></div>
+<div class="row"><div class="k">dispatch→</div><div class="v"><code>forge.components.code_executor.code_executor.CodeExecutorComponent.execute_python_file</code> <span class='muted'>@ src/agent.py:280</span></div></div>
+<div class="row"><div class="k">sink</div><div class="v"><code>subprocess.run</code> <span class='muted'>(ExecArgSink)</span></div></div>
+<div class="row"><div class="k">sink port</div><div class="v"><code>leaf:args</code></div></div>
+<div class="row"><div class="k">features</div><div class="v"><span class='muted'>has:first-field, first-field:arguments, always-via-type:typing.List[typing.Any], always-via-shell-value:&lt;missing&gt;, always-via:obscure:model, always-via:tito</span></div></div></div>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+  i3_n0[&quot;agent.Agent._execute_tool&lt;br/&gt;&lt;small&gt;leaf:tool_call @ line 265&lt;/small&gt;&quot;]
+  i3_n1{{&quot;LLM join&lt;br/&gt;&lt;small&gt;Agent._execute_tool @ src/agent.py:265&lt;/small&gt;&quot;}}
+  i3_n2([&quot;dispatch ▸ CodeExecutorComponent.execute_python_file&lt;br/&gt;&lt;small&gt;src/agent.py:280&lt;/small&gt;&quot;])
+  i3_n3[[&quot;subprocess.run&lt;br/&gt;&lt;small&gt;ExecArgSink · leaf:args&lt;/small&gt;&quot;]]
+  i3_n0 ==history==&gt; i3_n1
+  i3_n1 ==tool_calls==&gt; i3_n2
+  i3_n2 ==&gt; i3_n3
+  style i3_n0 fill:#1e293b,stroke:#64748b,color:#e2e8f0
+  style i3_n1 fill:#312e81,stroke:#818cf8,color:#e0e7ff
+  style i3_n2 fill:#7c2d12,stroke:#fb923c,color:#ffedd5
+  style i3_n3 fill:#c2410c,stroke:#fecaca,color:#ffffff
+    </pre></div>
+  </div>
+</section>
+<section class="card" style="border-left-color:#b91c1c">
+  <div class="card-head">
+    <div class="card-title">
+      <span class="idx">#5</span>
+      User specified data may reach a code execution sink
+      <span class="badge" style="background:#b91c1c">code 5001</span>
+      <span class="badge" style="background:#b91c1c">RemoteCodeExecution</span>
+    </div>
+    <div class="path"><span class="wp wp-source">Agent._execute_tool <span class="wpd">LLMControlled</span></span><span class="wpedge">history▸</span><span class="wp wp-llm">LLM join <span class="wpd">Agent._execute_tool :265</span></span><span class="wpedge">tool_calls▸</span><span class="wp wp-dispatch">dispatch ▸ CodeExecutorComponent.execute_shell <span class="wpd">src/agent.py:281</span></span><span class="wpedge">▸</span><span class="wp wp-sink">subprocess.run <span class="wpd">RemoteCodeExecution</span></span></div>
+  </div>
+  <div class="card-body">
+    <div class="meta"><div class="row"><div class="k">source</div><div class="v"><code>agent.Agent._execute_tool</code> <span class='muted'>(LLMControlled)</span> @ line 265</div></div>
+<div class="row"><div class="k">port</div><div class="v"><code>leaf:tool_call</code></div></div>
+<div class="row"><div class="k">callable</div><div class="v"><code>agent.Agent._execute_tool</code> <span class='muted'>@ line 265</span></div></div>
+<div class="row"><div class="k">dispatch→</div><div class="v"><code>forge.components.code_executor.code_executor.CodeExecutorComponent.execute_shell</code> <span class='muted'>@ src/agent.py:281</span></div></div>
+<div class="row"><div class="k">sink</div><div class="v"><code>subprocess.run</code> <span class='muted'>(RemoteCodeExecution)</span></div></div>
+<div class="row"><div class="k">sink port</div><div class="v"><code>leaf:args</code></div></div>
+<div class="row"><div class="k">features</div><div class="v"><span class='muted'>has:first-field, first-field:arguments, always-via-shell-value:&lt;unknown:named&gt;, always-via-type:typing.Any, via:obscure:model, via:tito</span></div></div></div>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+  i4_n0[&quot;agent.Agent._execute_tool&lt;br/&gt;&lt;small&gt;leaf:tool_call @ line 265&lt;/small&gt;&quot;]
+  i4_n1{{&quot;LLM join&lt;br/&gt;&lt;small&gt;Agent._execute_tool @ src/agent.py:265&lt;/small&gt;&quot;}}
+  i4_n2([&quot;dispatch ▸ CodeExecutorComponent.execute_shell&lt;br/&gt;&lt;small&gt;src/agent.py:281&lt;/small&gt;&quot;])
+  i4_n3[[&quot;subprocess.run&lt;br/&gt;&lt;small&gt;RemoteCodeExecution · leaf:args&lt;/small&gt;&quot;]]
+  i4_n0 ==history==&gt; i4_n1
+  i4_n1 ==tool_calls==&gt; i4_n2
+  i4_n2 ==&gt; i4_n3
+  style i4_n0 fill:#1e293b,stroke:#64748b,color:#e2e8f0
+  style i4_n1 fill:#312e81,stroke:#818cf8,color:#e0e7ff
+  style i4_n2 fill:#7c2d12,stroke:#fb923c,color:#ffedd5
+  style i4_n3 fill:#b91c1c,stroke:#fecaca,color:#ffffff
+    </pre></div>
+  </div>
+</section>
+<section class="card" style="border-left-color:#b91c1c">
+  <div class="card-head">
+    <div class="card-title">
+      <span class="idx">#6</span>
+      User specified data may reach a code execution sink
+      <span class="badge" style="background:#b91c1c">code 5001</span>
+      <span class="badge" style="background:#b91c1c">RemoteCodeExecution</span>
+    </div>
+    <div class="path"><span class="wp wp-source">Agent._execute_tool <span class="wpd">LLMControlled</span></span><span class="wpedge">history▸</span><span class="wp wp-llm">LLM join <span class="wpd">Agent._execute_tool :265</span></span><span class="wpedge">tool_calls▸</span><span class="wp wp-dispatch">dispatch ▸ CodeExecutorComponent.execute_python_file <span class="wpd">src/agent.py:280</span></span><span class="wpedge">▸</span><span class="wp wp-sink">subprocess.run <span class="wpd">RemoteCodeExecution</span></span></div>
+  </div>
+  <div class="card-body">
+    <div class="meta"><div class="row"><div class="k">source</div><div class="v"><code>agent.Agent._execute_tool</code> <span class='muted'>(LLMControlled)</span> @ line 265</div></div>
+<div class="row"><div class="k">port</div><div class="v"><code>leaf:tool_call</code></div></div>
+<div class="row"><div class="k">callable</div><div class="v"><code>agent.Agent._execute_tool</code> <span class='muted'>@ line 265</span></div></div>
+<div class="row"><div class="k">dispatch→</div><div class="v"><code>forge.components.code_executor.code_executor.CodeExecutorComponent.execute_python_file</code> <span class='muted'>@ src/agent.py:280</span></div></div>
+<div class="row"><div class="k">sink</div><div class="v"><code>subprocess.run</code> <span class='muted'>(RemoteCodeExecution)</span></div></div>
+<div class="row"><div class="k">sink port</div><div class="v"><code>leaf:args</code></div></div>
+<div class="row"><div class="k">features</div><div class="v"><span class='muted'>has:first-field, first-field:arguments, always-via-type:typing.List[typing.Any], always-via-shell-value:&lt;missing&gt;, always-via:obscure:model, always-via:tito-broadening, always-via:tito, always-via:broadening, always-via:obscure:unknown-callee</span></div></div></div>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+  i5_n0[&quot;agent.Agent._execute_tool&lt;br/&gt;&lt;small&gt;leaf:tool_call @ line 265&lt;/small&gt;&quot;]
+  i5_n1{{&quot;LLM join&lt;br/&gt;&lt;small&gt;Agent._execute_tool @ src/agent.py:265&lt;/small&gt;&quot;}}
+  i5_n2([&quot;dispatch ▸ CodeExecutorComponent.execute_python_file&lt;br/&gt;&lt;small&gt;src/agent.py:280&lt;/small&gt;&quot;])
+  i5_n3[[&quot;subprocess.run&lt;br/&gt;&lt;small&gt;RemoteCodeExecution · leaf:args&lt;/small&gt;&quot;]]
+  i5_n0 ==history==&gt; i5_n1
+  i5_n1 ==tool_calls==&gt; i5_n2
+  i5_n2 ==&gt; i5_n3
+  style i5_n0 fill:#1e293b,stroke:#64748b,color:#e2e8f0
+  style i5_n1 fill:#312e81,stroke:#818cf8,color:#e0e7ff
+  style i5_n2 fill:#7c2d12,stroke:#fb923c,color:#ffedd5
+  style i5_n3 fill:#b91c1c,stroke:#fecaca,color:#ffffff
+    </pre></div>
+  </div>
+</section>
+<section class="card" style="border-left-color:#b91c1c">
+  <div class="card-head">
+    <div class="card-title">
+      <span class="idx">#7</span>
+      User specified data may reach a code execution sink
+      <span class="badge" style="background:#b91c1c">code 5001</span>
+      <span class="badge" style="background:#b91c1c">RemoteCodeExecution</span>
+    </div>
+    <div class="path"><span class="wp wp-source">Agent._execute_tool <span class="wpd">LLMControlled</span></span><span class="wpedge">history▸</span><span class="wp wp-llm">LLM join <span class="wpd">Agent._execute_tool :265</span></span><span class="wpedge">tool_calls▸</span><span class="wp wp-dispatch">dispatch ▸ CodeExecutorComponent.execute_python_file <span class="wpd">src/agent.py:280</span></span><span class="wpedge">▸</span><span class="wp wp-sink">subprocess.run <span class="wpd">RemoteCodeExecution</span></span></div>
+  </div>
+  <div class="card-body">
+    <div class="meta"><div class="row"><div class="k">source</div><div class="v"><code>agent.Agent._execute_tool</code> <span class='muted'>(LLMControlled)</span> @ line 265</div></div>
+<div class="row"><div class="k">port</div><div class="v"><code>leaf:tool_call</code></div></div>
+<div class="row"><div class="k">callable</div><div class="v"><code>agent.Agent._execute_tool</code> <span class='muted'>@ line 265</span></div></div>
+<div class="row"><div class="k">dispatch→</div><div class="v"><code>forge.components.code_executor.code_executor.CodeExecutorComponent.execute_python_file</code> <span class='muted'>@ src/agent.py:280</span></div></div>
+<div class="row"><div class="k">sink</div><div class="v"><code>subprocess.run</code> <span class='muted'>(RemoteCodeExecution)</span></div></div>
+<div class="row"><div class="k">sink port</div><div class="v"><code>leaf:args</code></div></div>
+<div class="row"><div class="k">features</div><div class="v"><span class='muted'>has:first-field, first-field:arguments, always-via-type:typing.List[typing.Any], always-via-shell-value:&lt;missing&gt;, always-via:obscure:model, always-via:tito</span></div></div></div>
+    <div class="diagram"><pre class="mermaid">
+flowchart TD
+  i6_n0[&quot;agent.Agent._execute_tool&lt;br/&gt;&lt;small&gt;leaf:tool_call @ line 265&lt;/small&gt;&quot;]
+  i6_n1{{&quot;LLM join&lt;br/&gt;&lt;small&gt;Agent._execute_tool @ src/agent.py:265&lt;/small&gt;&quot;}}
+  i6_n2([&quot;dispatch ▸ CodeExecutorComponent.execute_python_file&lt;br/&gt;&lt;small&gt;src/agent.py:280&lt;/small&gt;&quot;])
+  i6_n3[[&quot;subprocess.run&lt;br/&gt;&lt;small&gt;RemoteCodeExecution · leaf:args&lt;/small&gt;&quot;]]
+  i6_n0 ==history==&gt; i6_n1
+  i6_n1 ==tool_calls==&gt; i6_n2
+  i6_n2 ==&gt; i6_n3
+  style i6_n0 fill:#1e293b,stroke:#64748b,color:#e2e8f0
+  style i6_n1 fill:#312e81,stroke:#818cf8,color:#e0e7ff
+  style i6_n2 fill:#7c2d12,stroke:#fb923c,color:#ffedd5
+  style i6_n3 fill:#b91c1c,stroke:#fecaca,color:#ffffff
+    </pre></div>
+  </div>
+</section>
+</main>
+<footer>
+  Generated by render_m2_report.py &middot; TaintP2X M2 verification (AutoGPT v0.5.0).<br/>
+  Hexagon = LLM join; stadium = resolved dispatch; double box = sink.
+  Solid edges = LLM-controlled taint path.
+  cond_A (no lowering) found 0 issue(s);
+  cond_B (with lowering) found 7 issue(s).
+</footer>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,securityLevel:'strict',theme:'base',
+ themeVariables:{fontSize:'12px',lineColor:'#64748b',primaryColor:'#1e293b',
+ primaryTextColor:'#e2e8f0',primaryBorderColor:'#475569'},
+ flowchart:{htmlLabels:true,curve:'basis'}});
+</script>
+</body></html>

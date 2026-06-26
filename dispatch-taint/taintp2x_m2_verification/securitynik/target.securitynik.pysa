@@ -1,0 +1,8 @@
+# --- SecurityNik/MCP-Stuff: source declaration (sinks inherited from host TaintP2X) ---
+# The validated tool-arguments dict at the dispatch point is attacker-controlled
+# (client/agent-supplied, prompt-injection-influenceable). Mirrors func_metadata.py:96
+# `fn(**arguments_parsed_dict)`. Declared on the dispatch function that CONTAINS the
+# wall (same pattern as the AutoGPT M2 source) so the source and the lowered tool
+# calls live in one function. Reuse host 'LLMControlled' so existing rules
+# (LLMControlled -> RemoteCodeExecution / ExecArgSink / FileSystem_ReadWrite) fire.
+def dispatch._call_fn(fn, arguments_parsed_dict: TaintSource[LLMControlled]): ...

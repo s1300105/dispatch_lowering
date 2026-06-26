@@ -1,0 +1,7 @@
+{
+  "tools": [
+    {"name": "read_file",  "callable": "files.read_file",  "recv": null, "roles": ["source"], "sink": null, "source": {"capacity": "string", "attacker": true}},
+    {"name": "write_file", "callable": "files.write_file", "recv": null, "roles": ["sink"], "sink": {"category": "file_write", "arg": "content", "guard": "confirm_action"}, "source": null}
+  ],
+  "llm_call": null
+}

@@ -1,0 +1,8 @@
+{
+  "tool_decorators": ["tool", "register", "route"],
+  "resolver_hints": [],
+  "detect_subscript": true,
+  "detect_getattr": true,
+  "detect_higher_order": true,
+  "scan_all_callables": false
+}

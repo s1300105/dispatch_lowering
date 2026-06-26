@@ -1,0 +1,1 @@
+{"tool_decorators": ["tool"], "wall_param_names": ["fn"], "candidate_import_module": "server", "insert_before": true, "detect_subscript": false, "detect_getattr": false, "detect_higher_order": false}
