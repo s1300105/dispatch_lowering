@@ -6,7 +6,7 @@ show that **Pysa (pyre-check, actually run here)** detects the cross-tool
 implicit flow (CWE-1426) the standalone engine missed.
 
 Pyre version used: 0.9.25 (`pip install pyre-check`).
-Run:  `pyre analyze --save-results-to ./res && python ../../postprocess.py ./res --implicit-only`
+Run:  `pyre analyze --no-verify --save-results-to ./res`
 
 | target (src/agent.py variant) | shape | raw Pysa | with §4.3 bridge model |
 |---|---|---|---|

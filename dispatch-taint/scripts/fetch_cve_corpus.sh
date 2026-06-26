@@ -40,7 +40,5 @@ clone "stitionai/devika" "main"
 #   NOTE: Devika has no release tags — checkout the commit referenced by each advisory.
 
 echo
-echo "Done. Next:"
-echo "  python -m benchmark.cve_bench --corpus \"$DEST\"                 # heuristic tool model"
-echo "  python -m benchmark.cve_bench --corpus \"$DEST\" --classifier deepseek   # LLM tool model"
-echo "Adjust repo/ref/src_rel in benchmark/cve_cases.py after inspecting each checkout."
+echo "Done. Repos are in $DEST — inspect each checkout, then run dispatch_lowering"
+echo "on the target and pyre analyze to detect taint flows."

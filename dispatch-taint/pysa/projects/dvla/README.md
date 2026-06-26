@@ -43,11 +43,9 @@ sed -i "s#/ABSOLUTE/PATH/TO/damn-vulnerable-llm-agent#$HOME/dvla#" projects/dvla
 cp .pyre_configuration .pyre_configuration.example.bak   # keep the example config
 cp projects/dvla/pyre_configuration.dvla .pyre_configuration
 
-# 4) check the models verify against DVLA, then analyse + post-process
+# 4) check the models verify against DVLA, then analyse
 pyre validate-models
 pyre analyze --save-results-to ./pysa-results-dvla
-python postprocess.py ./pysa-results-dvla            # human-readable
-python postprocess.py ./pysa-results-dvla --json > projects/dvla/findings.json
 
 # 5) restore the example config when done
 cp .pyre_configuration.example.bak .pyre_configuration

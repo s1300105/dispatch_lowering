@@ -179,7 +179,7 @@ CTF/AgentDojo の機械的写像で曖昧な箇所は、2 名で独立にラベ�
    `read_resource` は既定モデルで source 化。それ以外の未信頼データ取得は明示モデルを追加。
 3. **sink（種別の追加）**：AgentDojo のアプリ級操作は新種別が要る。`models/taint.config` に
    例えば `MoneyTransfer` / `EmailSend` 等の sink と、`ToolOutput -> <種別>` の rule
-   （新コード 9101…）を追加し、`postprocess.py` の `CODE_TO_CATEGORY` に対応を足す。
+   （新コード 9101…）を追加する。
    OS 級（`subprocess.run`/`os.system` 等）は既存のまま、または Pyre 同梱スタブを利用。
 4. **hide()**：参照渡し/秘匿ヘルパを `def <module>.<fn> -> Sanitize: ...` に。
 
@@ -196,14 +196,10 @@ python setup_project.py --target /path/to/<repo> --with-bundled-sinks \
 pip install -e /path/to/<repo>     # or its requirements
 # 3) frameworks.pysa を §5 に従い調整し、検証
 pyre validate-models
-# 4) 解析 → 後処理（JSON 出力を評価に回す）
-pyre analyze --save-results-to ./pysa-results
-python postprocess.py ./pysa-results --json > findings/<repo>.json
+# 4) 解析
+pyre analyze --no-verify --save-results-to ./pysa-results
+# 結果は pysa-results/errors.json (jq で確認)
 ```
-
-`postprocess.py --json` の各 finding は、sink 名・source（ツール）・file:line・
-kind（implicit/explicit）・prune_reason・triage を持つ。これと `labels/<repo>.csv` を
-(source_tool, sink_tool) で突き合わせる。
 
 ---
 
@@ -224,27 +220,11 @@ precision/FP 改善を主に見る（§0 の含意）。陰性対象では FP=0 
 
 ---
 
-## 8. 評価ハーネスへの接続（`ctaudit/eval`）
+## 8. 評価ハーネス
 
-既存ハーネスは自作ベンチ（`ctaudit/eval/labels.py` の `BENCHMARK`）を用いて
-precision/recall/F1・アブレーション・フレームワークコストを算出する
-（`python -m ctaudit.eval`）。実コーパス対応は次の薄いアダプタで行う。
-
-1. `ctaudit/eval/real_corpus.py`（新規）を追加し、(a) `postprocess.py --json` の出力群と
-   (b) `labels/<repo>.csv` を読み、(source_tool, sink_tool) で整列して
-   `(predicted: bool, label: int, stage)` のレコード列に変換する。
-2. `harness.py` の指標計算関数を、自作 `BENCHMARK` の代わりにこのレコード列に対しても
-   呼べるよう一般化する（指標ロジックは共通化済みなので入力差し替えで足りる）。
-3. CLI に `--corpus real --labels labels/ --findings findings/` のような経路を追加。
-
-これにより、**自作（循環）ベンチと実コーパス（非循環）の双方**を同じ指標系で比較できる。
-
-> **実装済み（M2 時点）：** `ctaudit/eval/real_corpus.py` を追加し、`python -m ctaudit.eval
-> --real-corpus`（`--json` 可）で **DVLA（Pysa 移植）＋ AgentDojo 4スイート（列挙）** を 1 つの
-> RQ1/RQ2 表に集約する。AgentDojo 各スイートの指標は `corpus/agentdojo/_common.py` の
-> `compute()` から実時間で算出し、DVLA は記録済みパイロット結果（`pysa/projects/dvla/labels.csv`
-> と照合）を統合する。現状の数値は `docs/stage4_results.md` に記録（recall 19/19、AgentDojo
-> 337→161）。AgentDojo は陽性のみラベルのため precision は DVLA のみ厳密（§10）。
+評価結果（pysa-results/errors.json）と `labels/<repo>.csv` を `(source_tool, sink_tool)`
+で突き合わせて precision/recall/F1・アブレーションを算出する。
+`docs/stage4_results.md` に現状の数値を記録している（recall 19/19、AgentDojo 337→161）。
 
 ---
 
@@ -258,7 +238,7 @@ precision/recall/F1・アブレーション・フレームワークコストを�
    その後、残りのスイートへ拡張。
 3. **M3（MCP）**：damn-vulnerable-ai-agent で MCP 経路を測定し、フレームワーク多様性を担保。
 4. **M4（陰性）**：AgentDojo 防御構成 + クリーンサンプルで FP を測定。
-5. **M5（集計）**：全対象を `ctaudit/eval` 実コーパスモードで集計し、RQ1/RQ2/RQ4 の表を作成。
+5. **M5（集計）**：全対象の結果を集計し、RQ1/RQ2/RQ4 の表を作成。
 
 ---
 

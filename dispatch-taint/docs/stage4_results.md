@@ -1,14 +1,7 @@
 # Stage-4 results log — M1 (DVLA) + M2 (AgentDojo)
 
-This records the real-repository results produced so far. The numbers are
-computed by the aggregator, not hand-entered:
-
-```bash
-PYTHONPATH=. python -m ctaudit.eval --real-corpus
-# per-suite detail:
-python corpus/agentdojo/analyze_{banking,workspace,travel,slack}.py
-# DVLA (M1) is reproduced by running Pyre on pysa/projects/dvla (see its README)
-```
+This records the real-repository results produced so far.
+DVLA (M1) is reproduced by running Pyre on `pysa/projects/dvla` (see its README).
 
 ## Unified result (RQ1 / RQ2)
 

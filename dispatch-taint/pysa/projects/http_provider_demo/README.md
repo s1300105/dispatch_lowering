@@ -24,7 +24,6 @@ POSTs to `/chat/completions`, and the model's chosen tool is run (sink). Run:
 
 ```
 cd pysa/projects/http_provider_demo && pyre analyze --save-results-to ./res
-python ../../postprocess.py ./res --implicit-only
 ```
 
 Result: **1 CROSS-TOOL IMPLICIT FLOW (CWE-1426)**. Pysa threads it
@@ -33,11 +32,10 @@ inter-procedurally *through the provider abstraction* (agent → complete_with_t
 classifier tags it correctly even though the LLM node is two call-hops from the
 recorded flow callables.
 
-### Supporting fix
-The structural implicit detector (`postprocess._flow_traverses_llm_node`) now
-walks the flow's **bounded call-closure** (issue callables + their same-file
-callees, a few hops) and matches both alias-resolved and raw-dotted call targets
-(so `self._client.post` matches the `httpx.Client.post` model). This keeps the
+### Supporting note
+The HTTP-provider abstraction case requires that the implicit flow detection walks
+the flow's bounded call-closure (issue callables + their same-file callees) and
+matches both alias-resolved and raw-dotted call targets. This keeps the
 provider-abstraction case implicit without over-tagging (a no-LLM verbatim flow
 stays explicit — verified).
 

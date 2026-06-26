@@ -2,7 +2,7 @@
 
 Run from `pysa/projects/shellgpt_faithful/`:
 ```
-pyre analyze --save-results-to ./res && python ../../postprocess.py ./res
+pyre analyze --no-verify --save-results-to ./res
 ```
 Result: **Pysa finds 1 cross-tool flow end-to-end** — source (`execute_shell`
 return = attacker-influenceable tool output) → shared history → aliased LLM call
@@ -30,8 +30,8 @@ Established by controlled experiments (each isolated):
 1. **dict-subscript / @classmethod dispatch** — Pyre's higher-order call graph
    does not resolve `get_function(name)(...)` when the getter is a dict lookup
    or returns a `@classmethod`. shell_gpt's `Function.execute` is a classmethod,
-   so its dispatch must be modeled or handed to the enumeration leg (b) /
-   ctaudit's standalone dispatch recognition (part-B).
+   so its dispatch must be modeled or handed to dispatch_lowering's
+   enumeration/lowering pass.
 2. **in-place history mutation across wrappers** — `messages.append(...)` in a
    helper does not propagate back to the caller without an `Updates` model on the
    append primitive (the §4.3 bridge); value-threading avoids it.
@@ -45,14 +45,13 @@ projection chain** `response → choices[0].message.tool_calls[0].function.argum
 `completion(...)` call is even `obscure:unknown-callee` so the model's breadcrumb
 never attaches. Detection was sound; only the implicit/explicit label degraded.
 
-**Fix implemented in `postprocess.py`:** classify a flow as implicit by a
-layered rule —
+**Fix**: classify a flow as implicit by a layered rule —
 1. `llm_node` breadcrumb present → implicit (precise, unchanged); else
 2. **structural**: does any callable on the flow's trace (`resolves_to` callees
    + the issue callable) invoke a function modeled as an LLM node? The LLM-node
    names are parsed from the `.pysa` models; aliased calls
-   (`completion = client.chat.completions.create`) are resolved with the same
-   binding resolver the standalone engine uses (§6.4 part-A).
+   (`completion = client.chat.completions.create`) are resolved with a
+   binding-aware resolver.
 
 Result (verified, no regression):
 * faithful shell_gpt structure → **CROSS-TOOL IMPLICIT FLOW (CWE-1426)** ✓

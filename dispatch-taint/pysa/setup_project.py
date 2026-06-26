@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Point ctaudit-on-Pysa at a real project: discover what to model, emit config.
+"""Point dispatch_lowering + Pysa at a real project: discover what to model, emit config.
 
 This scans a target source tree and reports the project-specific things you must
 wire into Pysa (steps 1 and 2 of the setup):
@@ -146,7 +146,7 @@ def main(argv=None) -> int:
     stubs_path, stub_sinks = bundled_taint_stubs()
 
     print("=" * 74)
-    print(f"ctaudit-on-Pysa — project discovery for {target}")
+    print(f"dispatch_lowering + Pysa — project discovery for {target}")
     print("=" * 74)
 
     print("\n[1] LLM entry points  -> model each as TaintInTaintOut[Via[llm_node]]")
@@ -188,7 +188,7 @@ def main(argv=None) -> int:
         print("    -> add rules `ToolOutput -> <kind>` in taint.config for the kinds you care about.")
     else:
         print("    (pyre_check bundled stubs not found; install pyre-check, or model")
-        print("     your project's specific sinks with ctaudit's own kinds instead.)")
+        print("     your project's specific sinks in a custom *.pysa file instead.)")
 
     # emit a .pyre_configuration for the target
     taint_paths = ["models", "frameworks"]
@@ -206,7 +206,6 @@ def main(argv=None) -> int:
     print(f"\nWrote suggested config -> {out}")
     print("Next: review frameworks.pysa against [1]-[3] above, install the project's")
     print("deps into this venv, then run:  pyre analyze --save-results-to ./pysa-results")
-    print("                                python postprocess.py ./pysa-results --implicit-only")
     return 0
 
 
