@@ -46,3 +46,9 @@ TaintP2X/dataset.7z
 
 # census 用の解析対象サンプル（外部由来・テスト用の偽キー類を含む）
 **/breadth_ch*/
+
+# extractor 検証の一時物（実証本体でない副産物）
+**/cond_B_auto/
+**/cond_subset_auto/
+**/cond_A_notype/r/
+**/cond_B_notype/r/

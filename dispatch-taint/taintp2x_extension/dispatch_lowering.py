@@ -61,6 +61,8 @@ class LoweringSpec:
     register_methods: Tuple[str, ...] = ()       # (2) x.register(fn) / add_tool(fn)
     tool_list_names: Tuple[str, ...] = ()        # (3) tools=[...] / TOOLS = [...]
     tool_wrappers: Tuple[str, ...] = ()          # (4) Tool(func=fn) / StructuredTool.from_function(fn)
+    tool_base_classes: Tuple[str, ...] = ()      # (6) class XxxTool(BaseTool): -> class-based tools
+    tool_impl_methods: Tuple[str, ...] = ()      # (6) the method carrying the tool body (e.g. _run)
     wrapper_func_kwargs: Tuple[str, ...] = ("func", "fn", "function", "coroutine", "callback")
     registry_vars: Tuple[str, ...] = ()          # (5) TOOLS = {"a": fn_a} (also membership narrowing)
     scan_all_callables: bool = False
@@ -69,6 +71,7 @@ class LoweringSpec:
     # wall detection
     resolver_hints: Tuple[str, ...] = ()         # (H) only flag resolver calls whose
                                                  # dotted name contains a hint; () = any
+    wall_method_names: Tuple[str, ...] = ()      # method names that count as tool-dispatch on a runtime var (e.g. run/arun)
     detect_subscript: bool = True
     detect_getattr: bool = True
     detect_higher_order: bool = True
@@ -78,9 +81,9 @@ class LoweringSpec:
 
 
 _NEW_KEYS = {
-    "tool_decorators", "register_methods", "tool_list_names", "tool_wrappers",
+    "tool_decorators", "register_methods", "tool_list_names", "tool_wrappers", "tool_base_classes", "tool_impl_methods",
     "wrapper_func_kwargs", "registry_vars", "scan_all_callables", "candidate_import_module", "insert_before",
-    "resolver_hints", "detect_subscript", "detect_getattr", "detect_higher_order",
+    "resolver_hints", "detect_subscript", "detect_getattr", "detect_higher_order", "wall_method_names",
     "wall_param_names", "wall_attr_names",
 }
 
@@ -112,6 +115,8 @@ def _coerce_spec(spec) -> LoweringSpec:
         register_methods=tuple(spec.get("register_methods", ())),
         tool_list_names=tuple(spec.get("tool_list_names", ())),
         tool_wrappers=tuple(spec.get("tool_wrappers", ())),
+        tool_base_classes=tuple(spec.get("tool_base_classes", ())),
+        tool_impl_methods=tuple(spec.get("tool_impl_methods", ())),
         wrapper_func_kwargs=tuple(spec.get("wrapper_func_kwargs",
                                            ("func", "fn", "function", "coroutine", "callback"))),
         registry_vars=tuple(spec.get("registry_vars", ())),
@@ -119,6 +124,7 @@ def _coerce_spec(spec) -> LoweringSpec:
         candidate_import_module=str(spec.get("candidate_import_module", "") or ""),
         insert_before=bool(spec.get("insert_before", False)),
         resolver_hints=hints,
+        wall_method_names=tuple(spec.get("wall_method_names", ())),
         detect_subscript=bool(spec.get("detect_subscript", True)),
         detect_getattr=bool(spec.get("detect_getattr", True)),
         detect_higher_order=bool(spec.get("detect_higher_order", True)),
@@ -323,6 +329,18 @@ def collect_candidates(src_root, spec) -> List[Tuple[Optional[str], str, List[st
                     for m in cls.body:
                         if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and _wanted(m):
                             out.append((cls.name, m.name, _params_of(m)))
+            # (6) class-based tools: class XxxTool(BaseTool): with an impl method (_run)
+            if sp.tool_base_classes and sp.tool_impl_methods:
+                _bases = set(sp.tool_base_classes)
+                _impls = set(sp.tool_impl_methods)
+                for cls in ast.walk(tree):
+                    if isinstance(cls, ast.ClassDef):
+                        base_names = {b.id for b in cls.bases if isinstance(b, ast.Name)}
+                        base_names |= {b.attr for b in cls.bases if isinstance(b, ast.Attribute)}
+                        if base_names & _bases:
+                            for m in cls.body:
+                                if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and m.name in _impls:
+                                    out.append((cls.name, m.name, _params_of(m)))
             # module-level functions (general only; legacy was class-only)
             if not sp._legacy:
                 for node in tree.body:
@@ -430,6 +448,9 @@ def _find_walls_general(tree, sp: LoweringSpec) -> List[ast.Call]:
                 if (sp.detect_subscript and _is_subscript(fn)) \
                    or (sp.detect_getattr and _is_getattr_call(fn)) \
                    or (isinstance(fn, ast.Name) and fn.id in runtime_vars) \
+                   or (isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name)
+                       and fn.value.id in runtime_vars
+                       and (not sp.wall_method_names or fn.attr in sp.wall_method_names)) \
                    or (isinstance(fn, ast.Name) and fn.id in sp.wall_param_names) \
                    or (isinstance(fn, ast.Attribute) and fn.attr in sp.wall_attr_names):
                     walls.append(node)
@@ -563,9 +584,11 @@ def _taint_args(call) -> List[str]:
         if _is_simple(v):
             out.append(ast.unparse(v))
     for kw in call.keywords:
-        if kw.arg is None:                      # **kwargs
-            if _is_simple(kw.value):
-                out.append(ast.unparse(kw.value))
+        if kw.arg is None:                      # **kwargs: drop from resolved call
+            # a ``**kwargs`` splat can't be forwarded as a positional/keyword arg
+            # without breaking argument order; it's dict-expansion (typically
+            # non-tainted logging kwargs), so we omit it from the resolved target.
+            continue
         elif _is_simple(kw.value):              # name=value (simple value only)
             out.append(f"{kw.arg}={ast.unparse(kw.value)}")
     return out
@@ -675,13 +698,23 @@ def lower_wall_file(source, candidates, spec):
     lines = source.splitlines()
     inserts = {}
     for call in walls:
-        func_nodes = chain.get(id(call)) or []
-        taint_args = _scope_taint_sources(func_nodes) if func_nodes else _taint_args(call)
+        # method-call wall (e.g. ``tool.run(x)`` where tool is runtime-selected):
+        # forward the call's ACTUAL arguments to the resolved target, not the whole
+        # enclosing scope. Direct-call walls (SK/AutoGPT) keep scope-based forwarding.
+        _is_method_wall = (isinstance(call.func, ast.Attribute)
+                           and isinstance(call.func.value, ast.Name))
+        if _is_method_wall:
+            taint_args = _taint_args(call)
+        else:
+            func_nodes = chain.get(id(call)) or []
+            taint_args = _scope_taint_sources(func_nodes) if func_nodes else _taint_args(call)
         if not taint_args:
             continue
         resolved = _resolved_calls(taint_args, candidates)
         assign_target = assign_map.get(id(call))  # None if not an Assign RHS
-        ln = call.lineno
+        # multi-line calls: insert AFTER the closing paren (end_lineno), not the
+        # opening line, or the block lands inside the argument list.
+        ln = (call.end_lineno or call.lineno) if _is_method_wall else call.lineno
         base = lines[ln - 1]
         indent = " " * (len(base) - len(base.lstrip()))
         block = [f"{indent}if __ctaudit_unreachable__:  # [ctaudit] resolved dynamic dispatch -> {len(resolved)} targets"]

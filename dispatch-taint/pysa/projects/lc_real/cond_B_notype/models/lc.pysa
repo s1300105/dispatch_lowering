@@ -1,0 +1,7 @@
+def langchain_classic.agents.agent.AgentExecutor._perform_agent_action(
+    self, name_to_tool_map, color_mapping,
+    agent_action: TaintSource[LLMControlled], run_manager
+): ...
+
+# 切り分け用: PythonREPLTool._run の query を直接 sink に（lowering→_run が繋がるか）
+def langchain_experimental.tools.python.tool.PythonREPLTool._run(self, query: TaintSink[RemoteCodeExecution], run_manager): ...

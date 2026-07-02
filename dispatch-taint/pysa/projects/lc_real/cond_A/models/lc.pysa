@@ -1,0 +1,4 @@
+def langchain_classic.agents.agent.AgentExecutor._perform_agent_action(
+    self, name_to_tool_map, color_mapping,
+    agent_action: TaintSource[LLMControlled], run_manager
+): ...
