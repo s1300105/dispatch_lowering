@@ -165,14 +165,14 @@ cd taintp2x_m2_verification
 ### パス解決について
 
 スクリプト冒頭の変数で各リポジトリの場所を解決する。`taintp2x_m2_verification/` は
-リポジトリ群ルート `cross_tool_audit2/` の **二段下**にあり（`taintp2x_m2_verification`
-→ `cross_tool_audit` → `cross_tool_audit2`）、`ROOT` はそれを前提に導く。
+リポジトリ群ルート `dispatch-taint-system/` の **二段下**にあり（`taintp2x_m2_verification`
+→ `dispatch-taint` → `dispatch-taint-system`）、`ROOT` はそれを前提に導く。
 
 ```
-ROOT     = <HERE>/../..                              （= cross_tool_audit2）
+ROOT     = <HERE>/../..                              （= dispatch-taint-system）
 TP2X     = $ROOT/TaintP2X/Taint_Propagation
-TYPESHED = $ROOT/cross_tool_audit/.venv/lib/pyre_check/typeshed
-EXT      = $ROOT/cross_tool_audit/taintp2x_extension
+TYPESHED = $ROOT/.venv/lib/pyre_check/typeshed
+EXT      = $ROOT/dispatch-taint/taintp2x_extension
 AUTOGPT  = $ROOT/autogpt
 ```
 
@@ -181,14 +181,14 @@ AUTOGPT  = $ROOT/autogpt
 ```bash
 TP2X=/path/to/TaintP2X/Taint_Propagation \
 TYPESHED=/path/to/.venv/lib/pyre_check/typeshed \
-EXT=/path/to/cross_tool_audit/taintp2x_extension \
+EXT=/path/to/dispatch-taint/taintp2x_extension \
 AUTOGPT=/path/to/autogpt \
   ./reproduce_m2.sh
 ```
 
 ### AutoGPT クローン（永続化済み）
 
-本検証では AutoGPT を `cross_tool_audit2/autogpt/`（= `$ROOT/autogpt`）に永続化して
+本検証では AutoGPT を `dispatch-taint-system/autogpt/`（= `$ROOT/autogpt`）に永続化して
 あり、スクリプトの既定もそこを指す。別環境で用意し直す場合は次のとおり。
 
 ```bash
@@ -222,6 +222,6 @@ taintp2x_m2_verification/
 
 外部依存（このフォルダ外、`$ROOT` 配下）:
 - `$ROOT/TaintP2X/Taint_Propagation/`（taint 定義・stubs、TaintP2X 由来・無改変）
-- `$ROOT/cross_tool_audit/taintp2x_extension/dispatch_lowering.py`（lowering 本体・本研究）
+- `$ROOT/dispatch-taint/taintp2x_extension/dispatch_lowering.py`（lowering 本体・本研究）
 - `$ROOT/autogpt/`（AutoGPT v0.5.0、コミット 9210d44）
-- `$ROOT/cross_tool_audit/.venv/`（pyre-check 入りの venv）
+- `$ROOT/.venv/`（pyre-check 入りの venv）

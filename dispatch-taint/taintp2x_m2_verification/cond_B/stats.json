@@ -1,0 +1,19 @@
+{
+  "files": 1,
+  "walls_detected": 1,
+  "walls_by_idiom": {
+    "higher_order(hint)": 1
+  },
+  "walls_skipped_no_args": 0,
+  "candidates_total": 4,
+  "links_built": 4,
+  "links_lowered": 4,
+  "links_filtered_registry": 0,
+  "links_filtered_level": 0,
+  "links_unreasonable": 0,
+  "links_no_args": 0,
+  "links_phantom": 0,
+  "lines_added": 13,
+  "redirectors": 0,
+  "unresolved_refs": []
+}

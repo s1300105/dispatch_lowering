@@ -414,3 +414,107 @@ lowering 有無だけが検出を分けた（0→3）。TaintP2X が越えられ
 ### 次
 TaintP2X 評価パイプライン／データセットで複数フレームワークの ablation を集計し、壁越えで新規検出した
 経路数・到達 sink を定量化する。
+
+---
+
+## 追記9（2026-08-29）: IccTA の設計を取り込んだ再構成
+
+IccTA（Li et al., ICSE 2015）が Android の ICC（Intent 経由の実行時解決される間接呼び出し）を
+「Epicc/IC3 でリンク解決 → `IpcSC.redirectorN` を生成 → Jimple を計装 → 無改変の FlowDroid」で
+解くのが本研究と同型であることに気づき、設計を対応づけて再構成した（対応表は README.md）。
+
+### 取り込んだもの
+1. **リンク IR**（`ICCLink` 相当）: `links.DispatchLink`。壁×候補の各リンクに判定（lowered /
+   filtered_registry / filtered_level / unreasonable / no_args / phantom）と根拠を記録し
+   `links.json` に永続化。解決と生成を分離。
+2. **プロバイダ**（Epicc / configfile 相当）: 自動解決と手書き `links.json`。SK の Stage 2 のように
+   解析者が固定するリンク（`forward` で転送引数も明示）を同じ計装器で扱える。
+3. **精度レバー**: レジストリ／BoolOp のメンバー所属による絞り込み（`narrow`）と、実引数と
+   ターゲット・シグネチャの不整合による不成立判定（`filter_unreasonable`＝`UnreasonableLinksRemover`
+   相当）、`match_level`。原則は `DefaultMatchAlgo` の "we can give up some links, but we had better
+   not introduce false positives" を共有する。**ただし対応は完全ではない**（後述）。
+4. **リダイレクタ**（`IpcSC.redirectorN` 相当）: `emit=redirector` で合成モジュール
+   `__ctaudit_redirect.py` に 1 リンク 1 関数を生成。壁側は 1 行/リンク。多段でも 1 つの
+   モジュールに集約し、同名別モジュールの候補は別名 import で区別する。
+5. **レシーバ構築**: クラス候補は `Cls.__new__(Cls)` でインスタンスを作り bound で呼ぶ
+   （inline / redirector 共通）。`await`、`return`/複合文・`elif` 連鎖の前への自動配置。
+6. **位置タグ・統計**（`JimpleIndexNumberTag` / `InfoStatistic` 相当）: `wall=<file>:<line>` と
+   `# <link id>`（多段では `S<i>L<n>` で links.json と一致）、`lowered_line`、`LoweringStats`
+   （`stats.json`、ablation の表）。
+7. **パス構造**（`updateJimpleForICC` 相当）: `pipeline.py`（pre-pass → provider → 計装 → post-pass）。
+8. **マイクロベンチ**（DroidBench ICC スイート相当。IccTA ツリーの `TestApps/` は起動器で、
+   `pipeline.py` がその役）: `bench/`（壁イディオム・精度機構別の fixture、`--pyre` で
+   cond_A=0 を確認したうえで Pysa 検証）。
+
+### 再構成の過程で判明したこと（重要・正直に記録）
+- **git HEAD のコードは AutoGPT で 0→2 しか出ていなかった**。README の「0→7」は旧 `if False`
+  時代のシグネチャ対応マッピング（`execute_python_file(filename=args, args=args)`）の結果で、その後
+  スコープ変数ダンプ方式に変わって 2 に落ちていたが、committed `cond_B` が古いため気づかなかった。
+- **HEAD のコードでは SK の手順（VERIFICATION_REPORT Q4）が構文エラー**になる（汎用検出器が
+  `vector.py` の別の `f = g(...); f.m(...)` も壁として拾い、複数行呼び出しの途中に挿入）。
+- 引数の転送規則を **「`**d` splat は候補の各仮引数へキーワードで割り当て（受け付けるなら `**d` も）、
+  実引数は名前が一致する範囲で転送、スコープダンプは最後の手段」** に戻し・整理した。
+  これで AutoGPT は 0→**5** issue、到達した (sink 種別, sink メソッド) は **5 組で旧 7 件と同一**
+  （旧 7 は execute_python_file の 2 つの汚染引数を別 issue として二重計上していた）。
+  回帰判定は生 issue 数に加えて sink 到達の組数（`EXPECT_SINKS_B`）で行う。
+- BoolOp 壁を `detect_boolop` として `detect_higher_order` から分離。挿入位置は呼び出し行でなく
+  **文**の開始/終了行に。
+
+### 対応が完全でない点（修論に正直に書く）
+
+多エージェントによる添削で以下が確認された。いずれも README「Where the analogy stops」と
+「Scope and honest limits」に明記済み:
+
+1. **リンクの作られ方が違う**。IccTA の `ICCLink` は IC3/Epicc という外部の値解析が Intent を
+   解決した結果で、1 リンク = 解決済みの (呼び出し位置 → コンポーネント)。本手法の
+   `build_links` はディスパッチキー自体を解析せず、壁×候補を列挙して 2 つのフィルタで刈る。
+   絞り込みが効かない壁（AutoGPT の `self._get_command(name)` 等）は候補全件に fan-out する。
+   → 「IccTA と同じ精度源を持つ」とは書けない。「同じ形の IR を、列挙＋刈り込みで作る」と書く。
+2. **`match_level` は `INTENT_MATCH_LEVEL` と別物**。IccTA の水準は intent-filter との照合の
+   深さ（action/category < +mime < +data）で、どれも解決済みリンクの話。本手法の水準は候補の
+   由来がどれだけ投機的か。共有しているのは「リンクを捨てても FP は入れない」という原則だけ。
+3. **受信側計装は無い**。IccTA は宛先クラスに `<init>(Intent)`・`getIntent()` override・
+   `dummyMain` を生成し、Intent 自体がデータ搬送路になる。本手法は呼び出し側のみで、
+   `Cls.__new__(Cls)` は `__init__` を走らせないので、レシーバ状態（登録時に設定された
+   `self.cmd` 等）経由の伝播は追えない。→「`<init>(Intent)` 相当」とは書かない。
+4. **ガードは意味保存ではない**。`__ctaudit_unreachable__` は未定義名なので、lowering 後の
+   ファイルを実行すると `NameError` になる。cond_B は IccTA の計装済み Jimple と同じく
+   **解析専用のコピー**。元呼び出しを残すのは「実行時意味を保つため」ではなく、Pysa が壁で
+   部分的に解決できる分を残すため。
+5. **絞り込みの健全性は経験則**。レジストリは「単一 dict リテラルで再束縛・変更・別名化・
+   `{**other}` が無い」場合のみ信頼するが、名前はモジュール修飾していない。デコレータ付き
+   候補やフレームワークの dispatch メソッド経由の壁ではシグネチャ照合を行わない
+   （ラッパが引数を消費するため）。
+6. **splat の配布は過大近似**。`command(**d)` は `d` を候補の各仮引数に配る（`filename=d, args=d`）
+   ため、`d` の一部のキーしか汚染されていない場合でも全パラメータが汚染扱いになる。
+
+### 検証の到達点（2026-08-29 時点）
+- AutoGPT v0.5.0: inline / redirector / 手書き `links.json` の 3 経路すべてで 0→7 issues、到達 sink 5 組、
+  旧結果とポート単位で完全一致。
+- Semantic Kernel 1.39.3: 2 段 spec で 0→1 issue（code 5001）。
+- マイクロベンチ 26 fixture × 2 形式: AST レベルと Pysa の両方で全 PASS。Pysa 判定は
+  「lowering 前は 0 issue（壁が本当に Pysa を止める）」かつ「lowering 後に fixture の sink 呼び出し先へ
+  到達」で行う。生の issue 数は判定に使わない（TaintP2X の規則では `subprocess.run` に 5001 と 5005 の
+  2 種類が付き、1 フロー = 2 issue になるため）。当初 `self.tools = {"shell": ShellTool()}` と書いていた
+  `method_wall` は型付き dict を Pysa が解決してしまい lowering なしで 2 issue 出た＝壁でなかったため、
+  実行時登録の形に直した（fixture が「壁である」ことを cond_A=0 で証明する仕組みが効いた例）。
+
+### 修論での位置づけ
+「データ依存解析が原理的に追えない動的ディスパッチ（制御依存）を、IccTA が ICC に対して行った
+"リンク解決＋計装で無改変エンジンに追わせる" 方式の Python/LLM エージェント版として解いた」と
+記述できる。ただし上の 1〜6 は差分・限界として明記すること。特に「IccTA と同型の設計を採る」
+のと「IccTA と同じ健全性・精度を得る」のは別であり、後者は主張しない。
+
+---
+
+## 追記10（2026-08-29）: 複数対象への展開設計
+
+対象ごとの手作業のうち、静的解析に一般に必要な source/sink 宣言と解析環境は手動のまま、
+システム固有の spec・`WALL_FILES`・バッチ集計を自動化する設計を `docs/SCALE_OUT_DESIGN.md` に
+まとめた（3 案を合議で審査: エンジン駆動 92 / カタログ 81 / AST ランキング 73）。要点:
+壁の発見を AST ではなく **Pysa 自身の成果物**（cond_A の `call-graph.json` の未解決記録、
+stub / obscure への解決、`higher-order-call-graph.json` の dispatch メソッド）で行い、レジストリ・
+アンカリングを補完とし、レビュー対象を `plan.json` 1 つに集約する。壁の定義を「AST が壁に見える」
+から「エンジンがそこで taint を失う」へ改める（`method_wall` fixture が型付き dict のせいで
+lowering なしでも検出されていた件が、AST 定義の誤りを示す実例）。次の作業はこの設計の
+コンポーネント 1〜3 + 6 + 8（単一対象の draft → review → run）。

@@ -275,11 +275,19 @@ class Agent(BaseAgent[OneShotAgentActionProposal], Configurable[AgentSettings]):
         command = self._get_command(tool_call.name)
         try:
             result = command(**tool_call.arguments)
-            if False:  # [ctaudit] resolved dynamic dispatch -> 4 targets
-                CodeExecutorComponent.execute_python_code(code=tool_call.arguments)
-                CodeExecutorComponent.execute_python_file(filename=tool_call.arguments, args=tool_call.arguments)
-                CodeExecutorComponent.execute_shell(command_line=tool_call.arguments)
-                CodeExecutorComponent.execute_shell_popen(command_line=tool_call.arguments)
+            if __ctaudit_unreachable__:  # [ctaudit] resolved dynamic dispatch -> 4 targets | wall=agent.py:277
+                __ctaudit_obj = CodeExecutorComponent.__new__(CodeExecutorComponent)
+                __ctaudit_ret = await __ctaudit_obj.execute_python_code(code=tool_call.arguments)  # L0
+                result = __ctaudit_ret
+                __ctaudit_obj = CodeExecutorComponent.__new__(CodeExecutorComponent)
+                __ctaudit_ret = __ctaudit_obj.execute_python_file(filename=tool_call.arguments, args=tool_call.arguments)  # L1
+                result = __ctaudit_ret
+                __ctaudit_obj = CodeExecutorComponent.__new__(CodeExecutorComponent)
+                __ctaudit_ret = __ctaudit_obj.execute_shell(command_line=tool_call.arguments)  # L2
+                result = __ctaudit_ret
+                __ctaudit_obj = CodeExecutorComponent.__new__(CodeExecutorComponent)
+                __ctaudit_ret = __ctaudit_obj.execute_shell_popen(command_line=tool_call.arguments)  # L3
+                result = __ctaudit_ret
             if inspect.isawaitable(result):
                 return await result
             return result

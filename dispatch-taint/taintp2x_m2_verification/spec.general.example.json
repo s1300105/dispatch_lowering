@@ -1,8 +1,14 @@
 {
+  "_comment": "Template lowering spec. Candidate recovery: tool_decorators / register_methods / tool_list_names / tool_wrappers / registry_vars / tool_base_classes+tool_impl_methods / scan_all_callables, or an explicit 'candidates' list ({cls,name,params,module,forward}). Wall detection: detect_subscript / detect_getattr / detect_higher_order (+resolver_hints) / detect_boolop / wall_method_names / wall_param_names / wall_attr_names. Precision: narrow (registry & BoolOp membership), filter_unreasonable (signature vs actual args), match_level (1 registry member, 2 decorator/registration, 3 scan-all). Emission: emit inline|redirector, insert_before, candidate_import_module. Multi-hop chains: wrap several specs in {\"stages\": [...]}.",
   "tool_decorators": ["tool", "register", "route"],
   "resolver_hints": [],
   "detect_subscript": true,
   "detect_getattr": true,
   "detect_higher_order": true,
-  "scan_all_callables": false
+  "detect_boolop": true,
+  "scan_all_callables": false,
+  "narrow": true,
+  "filter_unreasonable": true,
+  "match_level": 3,
+  "emit": "inline"
 }

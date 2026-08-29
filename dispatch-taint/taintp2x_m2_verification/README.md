@@ -13,6 +13,13 @@ The only difference between A and B is a lowering insertion into AutoGPT's `agen
 (proved by `diff`). TaintP2X itself is used **unmodified**; the lowering is a
 preprocessing step applied to the cloned target source.
 
+Since 2026-08-29 the inserted block carries the current emission form — the
+`wall=<file>:<line>` header tag, a constructed receiver
+(`CodeExecutorComponent.__new__(...)`) so each target runs as a bound method, and
+a `# <link id>` comment per call that matches `cond_B/links.json`. The issue count
+and the reached sinks are unchanged; only the shape of the inserted code differs
+from the `if False:` form described in older revisions of this guide.
+
 See `VERIFICATION_M2.md` in this directory for the full write-up (positioning,
 results, honest scope limits). This README is the operational guide: how to install
 the two external dependencies and run the reproduction.
@@ -22,7 +29,7 @@ the two external dependencies and run the reproduction.
 ## Why two external repositories are required
 
 This verification analyzes a real target with a real base analyzer. Neither is part
-of the `cross_tool_audit` repository (they are large third-party projects with their
+of this project (they are large third-party projects with their
 own licenses), so they are **not** pushed to git and must be obtained locally:
 
 1. **AutoGPT** — the analysis *target*. We use the TaintP2X-benchmark version
@@ -39,21 +46,24 @@ verification scaffolding (this directory) **are** in the repo.
 
 ## Expected directory layout
 
-The reproduction script assumes the following layout. `cross_tool_audit/` is this
-repository; `TaintP2X/` and `autogpt/` are the two external repos placed as siblings
-of `cross_tool_audit/` under a common root (named `cross_tool_audit2/` here, but any
-name works):
+The reproduction script assumes the following layout. `dispatch-taint/` is this
+project; `TaintP2X/` and `autogpt/` are the two external repos placed as siblings
+of it under a common root (`dispatch-taint-system/` here, but any name works):
 
 ```
-<ROOT>/                              # e.g. cross_tool_audit2
-├── cross_tool_audit/                # THIS repository
+<ROOT>/                              # dispatch-taint-system
+├── dispatch-taint/                  # THIS project
 │   ├── taintp2x_extension/
-│   │   └── dispatch_lowering.py     # the lowering pass (this work)
+│   │   ├── dispatch_lowering.py     # the lowering pass (this work)
+│   │   ├── links.py                 # the DispatchLink IR + precision filters
+│   │   └── pipeline.py              # the driver used by run_ablation.sh
 │   ├── taintp2x_m2_verification/    # this directory
 │   │   ├── reproduce_m2.sh
+│   │   ├── run_ablation.sh
 │   │   ├── README.md                # this file
 │   │   └── VERIFICATION_M2.md
-│   └── .venv/                       # venv with pyre-check (see below)
+│   └── ...
+├── .venv/                           # venv with pyre-check (see below)
 ├── TaintP2X/                        # external: base analyzer
 │   └── Taint_Propagation/{taint,stubs}
 └── autogpt/                         # external: analysis target (v0.5.0)
@@ -69,11 +79,10 @@ If your layout differs, every path is overridable by environment variable
 - Python >= 3.10 (verified on 3.12.3)
 - git
 - A virtual environment with **pyre-check** installed (provides `pyre` and the
-  bundled typeshed). If you already installed `cross_tool_audit` with the triage
-  extra you may have pyre; otherwise install it explicitly:
+  bundled typeshed). Install it explicitly:
 
 ```bash
-cd <ROOT>/cross_tool_audit
+cd <ROOT>
 python3 -m venv .venv
 source .venv/bin/activate
 pip install pyre-check
@@ -83,16 +92,16 @@ pyre --version          # sanity check
 Locate the bundled typeshed (the script's default expects it under the venv):
 
 ```bash
-python3 -c "import os,glob; print(next(iter(glob.glob(os.path.expanduser('<ROOT>/cross_tool_audit/.venv/**/typeshed'), recursive=True)), 'NOT FOUND'))"
+python3 -c "import os,glob; print(next(iter(glob.glob(os.path.expanduser('<ROOT>/.venv/**/typeshed'), recursive=True)), 'NOT FOUND'))"
 ```
 
-Typically `<ROOT>/cross_tool_audit/.venv/lib/pyre_check/typeshed`.
+Typically `<ROOT>/.venv/lib/pyre_check/typeshed`.
 
 ---
 
 ## Step 1 — Install AutoGPT (analysis target)
 
-Clone AutoGPT as a sibling of `cross_tool_audit/` and check out the benchmark version.
+Clone AutoGPT as a sibling of `dispatch-taint/` and check out the benchmark version.
 
 ```bash
 cd <ROOT>
@@ -117,7 +126,7 @@ read for static analysis.
 
 ## Step 2 — Install TaintP2X (base analyzer)
 
-Clone TaintP2X as a sibling of `cross_tool_audit/`.
+Clone TaintP2X as a sibling of `dispatch-taint/`.
 
 ```bash
 cd <ROOT>
@@ -141,7 +150,7 @@ TaintP2X's main driver (`run_download_and_check.py`) is **not** invoked or modif
 ## Step 3 — Run the reproduction
 
 ```bash
-cd <ROOT>/cross_tool_audit/taintp2x_m2_verification
+cd <ROOT>/dispatch-taint/taintp2x_m2_verification
 source ../.venv/bin/activate      # if not already active
 ./reproduce_m2.sh
 ```
@@ -178,7 +187,7 @@ script derives them from `<ROOT>` by default (`ROOT = <this dir>/../..`).
 ```bash
 TP2X=/path/to/TaintP2X/Taint_Propagation \
 TYPESHED=/path/to/.venv/lib/pyre_check/typeshed \
-EXT=/path/to/cross_tool_audit/taintp2x_extension \
+EXT=/path/to/dispatch-taint/taintp2x_extension \
 AUTOGPT=/path/to/autogpt \
   ./reproduce_m2.sh
 ```
@@ -186,8 +195,8 @@ AUTOGPT=/path/to/autogpt \
 | Variable | Default | Meaning |
 |---|---|---|
 | `TP2X` | `$ROOT/TaintP2X/Taint_Propagation` | TaintP2X taint defs + stubs |
-| `TYPESHED` | `$ROOT/cross_tool_audit/.venv/lib/pyre_check/typeshed` | pyre's typeshed |
-| `EXT` | `$ROOT/cross_tool_audit/taintp2x_extension` | folder with `dispatch_lowering.py` |
+| `TYPESHED` | `$ROOT/dispatch-taint/.venv/lib/pyre_check/typeshed` | pyre's typeshed |
+| `EXT` | `$ROOT/dispatch-taint/taintp2x_extension` | folder with `dispatch_lowering.py`, `links.py`, `pipeline.py` |
 | `AUTOGPT` | `$ROOT/autogpt` | AutoGPT clone (v0.5.0) |
 
 ---
@@ -202,11 +211,17 @@ All seven are taint paths in `agent.Agent._execute_tool` (LLM-controlled
 |---|---|---|---|
 | 1 | ExecArgSink (5005) | `execute_shell_popen` | `subprocess.Popen.__init__` |
 | 2 | ExecArgSink (5005) | `execute_shell` | `subprocess.run` |
-| 3 | ExecArgSink (5005) | `execute_python_file` | `subprocess.run` |
-| 4 | ExecArgSink (5005) | `execute_python_file` | `subprocess.run` |
+| 3 | ExecArgSink (5005) | `execute_python_file` | `subprocess.run` (`filename`) |
+| 4 | ExecArgSink (5005) | `execute_python_file` | `subprocess.run` (`args`) |
 | 5 | RemoteCodeExecution (5001) | `execute_shell` | `subprocess.run` |
-| 6 | RemoteCodeExecution (5001) | `execute_python_file` | `subprocess.run` |
-| 7 | RemoteCodeExecution (5001) | `execute_python_file` | `subprocess.run` |
+| 6 | RemoteCodeExecution (5001) | `execute_python_file` | `subprocess.run` (`filename`) |
+| 7 | RemoteCodeExecution (5001) | `execute_python_file` | `subprocess.run` (`args`) |
+
+Pysa reports one issue per tainted *argument* flow, so `execute_python_file`
+contributes two per rule — its `filename` and its `args` parameter both carry
+taint into `subprocess.run(["python", str(file_path)] + args)`. The distinct
+(sink kind, sink method) coverage is therefore **5 pairs**, which
+`ablation_helpers.py count` prints as `SINK_PAIRS` and `EXPECT_SINKS_B` asserts.
 
 Paths 1, 2, 5 reach the shell-execution methods (`execute_shell`,
 `execute_shell_popen`) — the location of AutoGPT v0.5.0's **CVE-2024-1881**

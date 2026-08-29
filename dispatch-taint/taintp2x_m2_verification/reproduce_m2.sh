@@ -3,7 +3,9 @@
 # reproduce_m2.sh — TaintP2X M2 レベル検証の動的再現
 #
 #   素の AutoGPT agent.py に dispatch_lowering を適用して cond_B を生成し、
-#   「lowering 無し = 0 issues → lowering 有り = 7 issues」を実演する。
+#   「lowering 無し = 0 issues → lowering 有り = 7 issues（到達 sink 5 組）」を実演する。
+#   （7 件なのは execute_python_file が filename と args の両方で汚染を受けるため。
+#     到達した (sink 種別, sink メソッド) は 5 組。）
 #
 #   前提: pyre-check が入った .venv が有効、TaintP2X の taint 定義一式が存在、
 #         AutoGPT (autogpt-platform-beta-v0.5.0) のクローンが存在。
@@ -23,7 +25,7 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 TP2X="${TP2X:-$ROOT/TaintP2X/Taint_Propagation}"
 
 # typeshed（pyre-check 同梱）
-TYPESHED="${TYPESHED:-$ROOT/dispatch-taint/.venv/lib/pyre_check/typeshed}"
+TYPESHED="${TYPESHED:-$ROOT/.venv/lib/pyre_check/typeshed}"
 
 # dispatch_lowering.py のあるフォルダ
 EXT="${EXT:-$ROOT/dispatch-taint/taintp2x_extension}"
@@ -166,10 +168,12 @@ print("callable 別:")
 for c, n in callables.items():
     print(f"  {c}: {n} 件")
 PY
+echo "--- 到達した (sink 種別, sink メソッド) の組（期待: 5 組）---"
+python3 "$HERE/ablation_helpers.py" count "$WORK/cond_B/r/taint-output.json" | sed -n '/^SINK_PAIRS/,$p'
 
 # ---- 7. まとめ ---------------------------------------------------------------
 say "=== 完了 ==="
 echo "条件A（lowering 無し）: ${A_RESULT##*ƛ }"
 echo "条件B（lowering 有り）: ${B_RESULT##*ƛ }"
-echo "差分は agent.py への lowering 挿入のみ。0 → 7 を動的に再現しました。"
+echo "差分は agent.py への lowering 挿入のみ。0 → 7（到達 sink 5 組）を動的に再現しました。"
 echo "結果 JSON: $WORK/results/cond_{A,B}_taint-output.json"

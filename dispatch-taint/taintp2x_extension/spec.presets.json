@@ -1,5 +1,5 @@
 {
-  "_note": "Each preset is a complete LoweringSpec dict. Copy the one matching your target into SPEC_JSON for run_ablation.sh. Presence of any general key opts into general mode; the autogpt preset uses the legacy keys and is byte-identical to the original.",
+  "_note": "Each preset is a complete LoweringSpec dict. Copy the one matching your target into SPEC_JSON for run_ablation.sh. Presence of any general key opts into general mode; the autogpt preset uses the legacy keys, i.e. the original wall-detection and candidate-recovery rules (the emitted code is the current form).",
 
   "autogpt_legacy": {
     "tool_decorator": "command",

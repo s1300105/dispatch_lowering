@@ -1,0 +1,31 @@
+{
+  "_comment": "Semantic Kernel 1.39.3 two-hop chain (VERIFICATION_REPORT.md Q4), as a staged pipeline spec. Stage 1: BoolOp wall `update_func = filter_update_function or default_dynamic_filter_function; update_func(...)` -> default_dynamic_filter_function. Stage 2: attr wall `self.search(...)` -> InMemoryCollection._parse_and_validate_filter (the resolved backend), threading stage 1's writeback (__ctaudit_ret) into filter_str.",
+  "stages": [
+    {
+      "detect_boolop": true,
+      "detect_higher_order": false,
+      "detect_subscript": false,
+      "detect_getattr": false,
+      "insert_before": true,
+      "candidate_import_module": "semantic_kernel.data._shared",
+      "candidates": [
+        {"cls": null, "name": "default_dynamic_filter_function", "params": ["filter", "parameters"],
+         "has_kwargs": true, "module": "semantic_kernel.data._shared", "origin": "explicit"}
+      ]
+    },
+    {
+      "wall_attr_names": ["search"],
+      "detect_boolop": false,
+      "detect_higher_order": false,
+      "detect_subscript": false,
+      "detect_getattr": false,
+      "insert_before": true,
+      "candidate_import_module": "semantic_kernel.connectors.in_memory",
+      "candidates": [
+        {"cls": "InMemoryCollection", "name": "_parse_and_validate_filter", "params": ["filter_str"],
+         "module": "semantic_kernel.connectors.in_memory", "origin": "explicit",
+         "forward": ["inner_options.filter"]}
+      ]
+    }
+  ]
+}

@@ -3,15 +3,34 @@
 External preprocessing only: never modifies the base analyzer (TaintP2X / Pysa).
 For each dynamic-dispatch *wall* — a call site whose callee is a runtime-selected
 value, so the static call graph has no edge across it — this pass inserts an
-``if False:`` block of direct calls to every *resolved* target, threading the
-wall's (tainted) argument(s) into each target's parameters. The block never
-executes (``if False``); it only hands Pysa's static data flow the edges it
-lacks, so taint can cross the wall to the dangerous sink.
+``if __ctaudit_unreachable__:`` block of direct calls to every *resolved*
+target, threading the wall's (tainted) argument(s) into each target's
+parameters. The block never executes (the guard is an undefined name, so it is
+never truthy at runtime, yet Pyre cannot prove it false and therefore analyses
+the block — ``if False:`` would be pruned as dead code). It only hands Pysa's
+static data flow the edges it lacks, so taint can cross the wall to the sink.
+
+Structure (IccTA analogue — see ``links.py``):
+  1. wall detection          (``find_walls``)             ~ ICC call-site discovery
+  2. candidate recovery      (``collect_candidates``)     ~ component enumeration
+  3. link construction       (``links.build_links``)      ~ Epicc/IC3 ``Links`` table
+                             + registry narrowing / argument-compatibility filters
+                             (~ ``UnreasonableLinksRemover``)
+  4. emission                (``lower_wall_file[_ex]``)   ~ ``ICCInstrumentSource``
+       emit="inline"      : the direct-call block right at the wall (original form)
+       emit="redirector"  : one generated ``redirector_N`` per link in a synthetic
+                            module ``__ctaudit_redirect`` (~ ``IpcSC.redirectorN``);
+                            the wall gets a one-line call per link, and the
+                            candidate object is constructed inside the redirector
+                            (~ ``ICCInstrumentDestination``'s ``<init>(Intent)``).
+  Every wall/link decision is recorded (``LoweringStats``, ``links.json``);
+  nothing is dropped silently.
 
 Generalised from the AutoGPT-specific ``@command`` version to a language-level
-idiom taxonomy, while staying byte-for-byte backward compatible with the legacy
-spec ``{"tool_decorator": "command", "dispatch_resolver_hint": "command"}`` so
-the existing AutoGPT M2 reproduction (0 -> 7 issues) is unchanged.
+idiom taxonomy. The legacy spec ``{"tool_decorator": "command",
+"dispatch_resolver_hint": "command"}`` still selects the original *detection and
+candidate* rules; the emitted code is the current form (guard, bound receiver,
+link tags). AutoGPT M2 reproduction: 0 -> 7 issues, 5 distinct sink pairs.
 
 Wall idioms (a Call whose callee is a runtime-selected value):
   (S) subscript-registry     REG[key](...)              detect_subscript
@@ -27,28 +46,44 @@ dotted name contains a hint (this is the legacy behaviour).
 Resolved target set (candidates), any combination of:
   * functions/methods decorated with one of ``tool_decorators``
     (``@command``, ``@tool``, ``@register(...)`` ...);
-  * (precision, planned) members of a registry dict/list literal the wall reads;
+  * members of a registry dict/list literal the wall reads (``registry_vars``;
+    a trusted registry also drives membership narrowing, ``match_level`` 1);
   * every def under the candidate root (``scan_all_callables`` — most
     over-approximate, recall-first fallback for unknown projects).
 
 PRECISION NOTE (recall-first discipline). (S) and (G) are structurally
 unambiguous dispatch sites. (H) with an EMPTY ``resolver_hints`` is the
-maximally over-approximate end: it flags every ``f = g(...); f(...)`` and, if
-the candidate set is global, connects each such wall to ALL candidates. The
-intended precision lever is candidate narrowing to the registry membership the
-wall actually reads (``targets = candidates ∩ registry``), mirroring
-``ctaudit/analysis/dispatch_resolution.py``; that narrowing is the next step to
-harvest from the native engine and is NOT yet applied here. Until then, use
-``resolver_hints`` / ``registry_vars`` (or per-target specs) to keep (H) tight.
+maximally over-approximate end: it flags every ``f = g(...); f(...)``. Two
+precision levers are applied per link in ``links.build_links`` (both on by
+default, off in legacy mode):
+  * registry narrowing (``spec.narrow``): when the wall reads a trusted static
+    registry (single dict literal, never mutated/aliased/rebound) or a BoolOp
+    all of whose alternatives are plain names, ``targets = candidates ∩ members``;
+  * argument compatibility (``spec.filter_unreasonable``): a candidate whose
+    signature cannot accept the wall's actual arguments is dropped as
+    ``unreasonable`` (splats make the shape unknowable -> kept).
+``spec.match_level`` caps how speculative a LINK may be (1 registry member,
+2 decorator/registration, 3 scan-all); narrowing promotes a candidate that is a
+member of the registry the wall reads to level 1. Registry narrowing is off in
+legacy mode; the argument-compatibility filter applies in both modes (disable it
+with ``filter_unreasonable=False``).
 """
 from __future__ import annotations
 
 import ast
+import keyword
 import os
+import re
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
+
+# this file is loaded by path (importlib) from the harnesses; make the sibling
+# ``links`` module importable regardless of the caller's sys.path
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
 
 
 # --------------------------------------------------------------------------- #
@@ -71,33 +106,50 @@ class LoweringSpec:
     # wall detection
     resolver_hints: Tuple[str, ...] = ()         # (H) only flag resolver calls whose
                                                  # dotted name contains a hint; () = any
-    wall_method_names: Tuple[str, ...] = ()      # method names that count as tool-dispatch on a runtime var (e.g. run/arun)
+    wall_method_names: Tuple[str, ...] = ()      # REQUIRED to flag `t.run(x)` where t is runtime-selected;
+                                                 # naming the framework's dispatch method (run/arun/_run)
+                                                 # keeps every other method call on that object out
     detect_subscript: bool = True
     detect_getattr: bool = True
     detect_higher_order: bool = True
+    detect_boolop: Optional[bool] = None         # (B) f = a or b; f(...)  — default: follows detect_higher_order
     wall_param_names: Tuple[str, ...] = ()       # flag p(...) where p is a callable param (e.g. "fn")
     wall_attr_names: Tuple[str, ...] = ()        # flag o.a(...) where a holds a callable (e.g. "fn","func")
-    _legacy: bool = False                        # internal: reproduce original exactly
+    # link precision (links.build_links)
+    narrow: bool = True                          # registry / BoolOp membership narrowing
+    filter_unreasonable: bool = True             # drop candidates whose signature rejects the wall's args
+    match_level: int = 3                         # max candidate speculation level kept (1..3)
+    # emission
+    emit: str = "inline"                         # "inline" | "redirector"
+    candidate_module_root: str = ""              # root for deriving candidate dotted modules (default: package walk-up)
+    candidates: Tuple[dict, ...] = ()            # explicit candidate records (skip recovery); see links.Candidate
+    _legacy: bool = False                        # internal: original detection/candidate rules
 
 
 _NEW_KEYS = {
     "tool_decorators", "register_methods", "tool_list_names", "tool_wrappers", "tool_base_classes", "tool_impl_methods",
     "wrapper_func_kwargs", "registry_vars", "scan_all_callables", "candidate_import_module", "insert_before",
-    "resolver_hints", "detect_subscript", "detect_getattr", "detect_higher_order", "wall_method_names",
-    "wall_param_names", "wall_attr_names",
+    "resolver_hints", "detect_subscript", "detect_getattr", "detect_higher_order", "detect_boolop",
+    "wall_method_names", "wall_param_names", "wall_attr_names",
+    "narrow", "filter_unreasonable", "match_level", "emit", "candidate_module_root", "candidates",
 }
+# keys that configure precision/emission only — they do not switch a legacy
+# spec (AutoGPT @command) into general detection mode
+_META_KEYS = {"narrow", "filter_unreasonable", "match_level", "emit", "candidate_module_root", "candidates"}
 
 
 def _coerce_spec(spec) -> LoweringSpec:
     """Accept a LoweringSpec, or a dict with legacy and/or new keys.
 
     A dict carrying ONLY legacy keys (``tool_decorator`` / ``dispatch_resolver_hint``)
-    selects legacy mode, which reproduces the original pass exactly.
+    — plus, optionally, precision/emission keys — selects legacy mode, which uses
+    the original wall-detection and candidate-recovery rules (the emitted code is
+    the current form).
     """
     if isinstance(spec, LoweringSpec):
         return spec
     spec = dict(spec or {})
-    has_new = bool(_NEW_KEYS & spec.keys())
+    has_new = bool((_NEW_KEYS - _META_KEYS) & spec.keys())
 
     decs = tuple(spec.get("tool_decorators", ()))
     if "tool_decorator" in spec:                 # legacy singular
@@ -128,8 +180,15 @@ def _coerce_spec(spec) -> LoweringSpec:
         detect_subscript=bool(spec.get("detect_subscript", True)),
         detect_getattr=bool(spec.get("detect_getattr", True)),
         detect_higher_order=bool(spec.get("detect_higher_order", True)),
+        detect_boolop=(None if spec.get("detect_boolop") is None else bool(spec.get("detect_boolop"))),
         wall_param_names=tuple(spec.get("wall_param_names", ())),
         wall_attr_names=tuple(spec.get("wall_attr_names", ())),
+        narrow=bool(spec.get("narrow", True)),
+        filter_unreasonable=bool(spec.get("filter_unreasonable", True)),
+        match_level=int(spec.get("match_level", 3)),
+        emit=str(spec.get("emit", "inline") or "inline"),
+        candidate_module_root=str(spec.get("candidate_module_root", "") or ""),
+        candidates=tuple(spec.get("candidates", ()) or ()),
         _legacy=legacy,
     )
 
@@ -188,12 +247,27 @@ def _scope_bodies(tree):
             yield n.body
 
 
+GUARD_NAME = "__ctaudit_unreachable__"
+_GEN_PREFIX = "__ctaudit_"
+
+
+def _is_generated_block(node) -> bool:
+    """An ``if __ctaudit_unreachable__:`` block this pass inserted earlier.
+    Its contents must not be re-detected as walls, or a second stage (or a
+    re-run) nests duplicate blocks and inflates every statistic."""
+    return (isinstance(node, ast.If) and isinstance(node.test, ast.Name)
+            and node.test.id == GUARD_NAME)
+
+
 def _own_stmt_walk(stmts):
     """Yield nodes inside ``stmts`` (and their expressions), NOT descending into
-    nested def/class bodies — those are separate scopes handled on their own."""
+    nested def/class bodies — those are separate scopes handled on their own —
+    nor into blocks this pass generated."""
     stack = list(stmts)
     while stack:
         n = stack.pop()
+        if _is_generated_block(n):
+            continue
         yield n
         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             continue
@@ -214,18 +288,20 @@ def _iter_py(src_root):
                     continue
 
 
-def _index_defs(src_root) -> Dict[str, List[Tuple[Optional[str], str, List[str]]]]:
-    """short callable name -> list of (class_or_None, name, params). Codebase-wide."""
-    by_short: Dict[str, List[Tuple[Optional[str], str, List[str]]]] = defaultdict(list)
-    for _p, tree in _iter_py(src_root):
+def _index_defs(src_root, mod_root: str = "") -> Dict[str, list]:
+    """short callable name -> list of links.Candidate. Codebase-wide."""
+    from links import Candidate, module_of
+    by_short: Dict[str, list] = defaultdict(list)
+    for p, tree in _iter_py(src_root):
+        mod = module_of(p, mod_root)
         for cls in ast.walk(tree):
             if isinstance(cls, ast.ClassDef):
                 for m in cls.body:
                     if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                        by_short[m.name].append((cls.name, m.name, _params_of(m)))
+                        by_short[m.name].append(Candidate.from_def(m, cls.name, mod, p, origin="registration"))
         for node in tree.body:
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                by_short[node.name].append((None, node.name, _params_of(node)))
+                by_short[node.name].append(Candidate.from_def(node, None, mod, p, origin="registration"))
     return by_short
 
 
@@ -298,37 +374,57 @@ def _registration_refs(src_root, sp: LoweringSpec):
     return refs
 
 
-def collect_candidates(src_root, spec) -> List[Tuple[Optional[str], str, List[str]]]:
-    """Recover the registered-tool set R as ``(class_or_None, name, param_names)``.
+def collect_candidates(src_root, spec) -> List["Candidate"]:
+    """Recover the registered-tool set R as ``links.Candidate`` records
+    (iterable as ``(class_or_None, name, param_names)`` for old callers).
 
     Legacy mode: decorator-marked *class methods* only (original behaviour).
     General mode: decorators + module functions, PLUS register-calls, tool-list
     literals, wrapper ctors and dict registries, resolved against a codebase-wide
     def index. References that don't resolve are reported by ``describe_candidates``.
+    Each record carries its dotted ``module`` (for the redirector emitter), its
+    full signature (for the argument-compatibility filter) and a ``match_level``
+    (1 registry-literal member, 2 decorator/registration, 3 scan-all).
+    ``spec.candidates`` (explicit records) short-circuits recovery entirely.
     """
+    from links import Candidate, module_of
     sp = _coerce_spec(spec)
+    if sp.candidates:
+        return _dedup_candidates([Candidate.from_any(c) for c in sp.candidates])
     decset = set(sp.tool_decorators)
-    out: List[Tuple[Optional[str], str, List[str]]] = []
+    out: List[Candidate] = []
+    mod_root = sp.candidate_module_root
 
     def _wanted(fn) -> bool:
         if sp.scan_all_callables:
             return True
         return bool(decset) and any(_dec_last(d) in decset for d in fn.decorator_list)
 
+    def _level(fn) -> int:
+        # decorator-marked = 2; only reached through scan_all_callables = 3
+        if decset and any(_dec_last(d) in decset for d in fn.decorator_list):
+            return 2
+        return 3
+
     for root, _, files in os.walk(src_root):
         for f in files:
             if not f.endswith(".py"):
                 continue
+            path = os.path.join(root, f)
             try:
-                tree = ast.parse(open(os.path.join(root, f)).read())
+                tree = ast.parse(open(path).read())
             except Exception:
                 continue
+            mod = module_of(path, mod_root)
             # class methods (legacy + general)
             for cls in ast.walk(tree):
                 if isinstance(cls, ast.ClassDef):
                     for m in cls.body:
                         if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and _wanted(m):
-                            out.append((cls.name, m.name, _params_of(m)))
+                            out.append(Candidate.from_def(
+                                m, cls.name, mod, path,
+                                origin="decorator" if _level(m) == 2 else "scan_all",
+                                match_level=_level(m)))
             # (6) class-based tools: class XxxTool(BaseTool): with an impl method (_run)
             if sp.tool_base_classes and sp.tool_impl_methods:
                 _bases = set(sp.tool_base_classes)
@@ -340,23 +436,31 @@ def collect_candidates(src_root, spec) -> List[Tuple[Optional[str], str, List[st
                         if base_names & _bases:
                             for m in cls.body:
                                 if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and m.name in _impls:
-                                    out.append((cls.name, m.name, _params_of(m)))
+                                    out.append(Candidate.from_def(m, cls.name, mod, path,
+                                                                  origin="base_class", match_level=2))
             # module-level functions (general only; legacy was class-only)
             if not sp._legacy:
                 for node in tree.body:
                     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and _wanted(node):
-                        out.append((None, node.name, _params_of(node)))
+                        out.append(Candidate.from_def(
+                            node, None, mod, path,
+                            origin="decorator" if _level(node) == 2 else "scan_all",
+                            match_level=_level(node)))
 
     # (2)(3)(4)(5) registration idioms beyond decorators (general mode only)
     if not sp._legacy and (sp.register_methods or sp.tool_list_names or sp.registry_vars):
-        index = _index_defs(src_root)
+        index = _index_defs(src_root, mod_root)
         for r in _registration_refs(src_root, sp):
             for entry in index.get(r, []):     # all matches: recall-first (ambiguity reported)
                 out.append(entry)
 
+    return _dedup_candidates(out)
+
+
+def _dedup_candidates(cands):
     seen, uniq = set(), []
-    for c in out:
-        k = (c[0], c[1])
+    for c in cands:
+        k = (c.cls, c.name, c.module)
         if k not in seen:
             seen.add(k)
             uniq.append(c)
@@ -397,17 +501,27 @@ def collect_commands(src_root, spec):
 # --------------------------------------------------------------------------- #
 # Wall detection
 # --------------------------------------------------------------------------- #
+def _walk_source(tree):
+    """``ast.walk`` over the original source only — blocks this pass generated
+    are skipped so a re-run does not lower its own output."""
+    stack = [tree]
+    while stack:
+        n = stack.pop()
+        yield n
+        stack.extend(c for c in ast.iter_child_nodes(n) if not _is_generated_block(c))
+
+
 def _find_walls_legacy(tree, hint: str) -> List[ast.Call]:
     """Exact port of the original ``_find_walls``: a var bound to a Call whose
     dotted name contains ``hint``, then bare-Name calls to that var."""
     cmd_vars = set()
-    for node in ast.walk(tree):
+    for node in _walk_source(tree):
         if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
             if hint in (_dotted(node.value.func) or "").lower():
                 for t in node.targets:
-                    if isinstance(t, ast.Name):
+                    if isinstance(t, ast.Name) and not t.id.startswith(_GEN_PREFIX):
                         cmd_vars.add(t.id)
-    return [n for n in ast.walk(tree)
+    return [n for n in _walk_source(tree)
             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id in cmd_vars]
 
 
@@ -420,6 +534,7 @@ def _find_walls_general(tree, sp: LoweringSpec) -> List[ast.Call]:
     is sound; it is recall-first (may over-flag same-named vars across scopes).
     """
     bodies = list(_scope_bodies(tree))
+    detect_boolop = sp.detect_higher_order if sp.detect_boolop is None else sp.detect_boolop
     # pass 1: collect every local bound to a runtime-selected value, across scopes
     runtime_vars = set()
     for body in bodies:
@@ -431,13 +546,14 @@ def _find_walls_general(tree, sp: LoweringSpec) -> List[ast.Call]:
                     or (sp.detect_getattr and _is_getattr_call(v))
                     or (sp.detect_higher_order and isinstance(v, ast.Call)
                         and not _is_getattr_call(v) and _hint_ok(v, sp.resolver_hints))
-                    or (sp.detect_higher_order and isinstance(v, ast.BoolOp)
+                    or (detect_boolop and isinstance(v, ast.BoolOp)
                         and any(isinstance(e, (ast.Name, ast.Call, ast.Attribute))
                                 for e in v.values))
                 )
                 if bound:
                     for t in node.targets:
-                        if isinstance(t, ast.Name):
+                        # never treat this pass's own temporaries as walls
+                        if isinstance(t, ast.Name) and not t.id.startswith(_GEN_PREFIX):
                             runtime_vars.add(t.id)
     # pass 2: flag calls whose callee is runtime-selected
     walls: List[ast.Call] = []
@@ -450,7 +566,7 @@ def _find_walls_general(tree, sp: LoweringSpec) -> List[ast.Call]:
                    or (isinstance(fn, ast.Name) and fn.id in runtime_vars) \
                    or (isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name)
                        and fn.value.id in runtime_vars
-                       and (not sp.wall_method_names or fn.attr in sp.wall_method_names)) \
+                       and fn.attr in sp.wall_method_names) \
                    or (isinstance(fn, ast.Name) and fn.id in sp.wall_param_names) \
                    or (isinstance(fn, ast.Attribute) and fn.attr in sp.wall_attr_names):
                     walls.append(node)
@@ -564,11 +680,13 @@ def _scope_taint_sources(func_nodes) -> List[str]:
                 if _is_simple(t):
                     add(ast.unparse(t))
 
-    # Promote __ctaudit_ret to position 1 so it maps to the second positional
-    # parameter of the resolved candidate (the taint-bearing data argument).
+    # Promote __ctaudit_ret (a previous stage's writeback) to position 1 so
+    # that, once the enclosing method's receiver is stripped by build_links,
+    # it maps to the resolved candidate's first real parameter (the data
+    # argument that receives the previous wall's return value).
     if "__ctaudit_ret" in out and len(out) > 1:
         out.remove("__ctaudit_ret")
-        out.insert(1, "__ctaudit_ret")
+        out.insert(1 if out[0] in ("self", "cls") else 0, "__ctaudit_ret")
 
     return out
 
@@ -580,27 +698,32 @@ def _taint_args(call) -> List[str]:
     Complex argument expressions are dropped (see _is_simple)."""
     out = []
     for a in call.args:
-        v = a.value if isinstance(a, ast.Starred) else a
-        if _is_simple(v):
-            out.append(ast.unparse(v))
+        if isinstance(a, ast.Starred):
+            continue                            # *args splat: not forwardable positionally
+        if _is_simple(a) or isinstance(a, ast.Constant):
+            out.append(ast.unparse(a))
     for kw in call.keywords:
         if kw.arg is None:                      # **kwargs: drop from resolved call
             # a ``**kwargs`` splat can't be forwarded as a positional/keyword arg
             # without breaking argument order; it's dict-expansion (typically
             # non-tainted logging kwargs), so we omit it from the resolved target.
             continue
-        elif _is_simple(kw.value):              # name=value (simple value only)
-            out.append(f"{kw.arg}={ast.unparse(kw.value)}")
+        elif _is_simple(kw.value) or isinstance(kw.value, ast.Constant):
+            out.append(f"{kw.arg}={ast.unparse(kw.value)}")   # name=value (simple / literal)
     return out
 
 
+def _call_expr(qual: str, taint_args: List[str], is_async: bool, in_async: bool) -> str:
+    """``qual(args)``, awaited when the target is a coroutine function and the
+    wall sits in an ``async def`` (otherwise ``await`` would be a syntax error)."""
+    expr = f"{qual}({', '.join(taint_args)})"
+    return f"await {expr}" if (is_async and in_async) else expr
+
+
 def _resolved_calls(taint_args: List[str], candidates) -> List[str]:
-    args = ", ".join(taint_args)
-    calls = []
-    for cls, name, _params in candidates:       # params no longer used
-        qual = f"{cls}.{name}" if cls else name
-        calls.append(f"{qual}({args})")
-    return calls
+    """Kept for old callers: one unbound direct call per candidate."""
+    from links import coerce_candidates
+    return [_call_expr(c.qualname, taint_args, False, False) for c in coerce_candidates(candidates)]
 
 
 def _build_assign_map(tree) -> Dict[int, str]:
@@ -681,72 +804,357 @@ def _inject_type_checking_imports(source, candidates, module):
     tail = "\n" if source.endswith("\n") else ""
     return "\n".join(out) + tail
 
-def lower_wall_file(source, candidates, spec):
-    """Insert an ``if __ctaudit_unreachable__:`` resolved-dispatch block before/after
-    each detected wall.  Byte-identical to the original in legacy mode.
+REDIRECT_MODULE = "__ctaudit_redirect"
+# statements after which an inserted block would be unreachable (return/raise)
+# or would land inside/after a body the wall's header controls
+_BEFORE_KINDS = {"Return", "Raise", "If", "While", "For", "AsyncFor", "With", "AsyncWith",
+                 "Try", "TryStar", "Match", "Assert"}
 
-    Writeback: when the wall is the RHS of an Assign (``x = wall(...)``), each
-    resolved call is wrapped as ``__ctaudit_ret = cand(...); x = __ctaudit_ret`` so
-    Pysa sees taint flow into the assigned variable without executing the block."""
+
+def _module_bindings(source: str) -> set:
+    """Top-level names the wall file already binds (imports, defs, classes,
+    assignments). A target whose name is already bound must not be re-imported
+    into the block — that would shadow or conflict with the file's own name."""
+    out = set()
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return out
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            for a in node.names:
+                out.add((a.asname or a.name).split(".")[0])
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            out.add(node.name)
+        elif isinstance(node, ast.Assign):
+            for t in node.targets:
+                if isinstance(t, ast.Name):
+                    out.add(t.id)
+        elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)) and isinstance(node.target, ast.Name):
+            out.add(node.target.id)
+    return out
+
+
+def _receiver_stmt(cls: str) -> str:
+    """Construct the target object without running a constructor whose
+    arguments we cannot supply statically — IccTA's generated ``<init>(Intent)``
+    / null-argument constructor fallback. ``Cls.__new__(Cls)`` is typed as
+    ``Cls`` by Pyre, so method resolution and the target's sink models apply."""
+    return f"__ctaudit_obj = {cls}.__new__({cls})"
+
+
+def _param_name(expr: str, taken: set) -> str:
+    """Valid, unique parameter name derived from a forwarded argument expression
+    (``tool_call.arguments`` -> ``tool_call_arguments``)."""
+    base = re.sub(r"\W+", "_", expr).strip("_") or "arg"
+    if base[0].isdigit():
+        base = "a_" + base
+    if keyword.iskeyword(base):
+        base += "_"
+    name, i = base, 1
+    while name in taken:
+        i += 1
+        name = f"{base}_{i}"
+    taken.add(name)
+    return name
+
+
+class RedirectModuleBuilder:
+    """Accumulates generated redirectors across wall files and renders the
+    synthetic module ``__ctaudit_redirect.py`` (IccTA's ``IpcSC`` class).
+
+    Each redirector takes exactly the wall's forwarded arguments, constructs the
+    target object when the target is a method (``Cls.__new__(Cls)`` — the
+    ``<init>(Intent)`` analogue: an instance without running a constructor we
+    cannot statically provide arguments for), calls the target and returns its
+    result, so the wall's writeback sees the target's return value."""
+
+    def __init__(self, module_name: str = REDIRECT_MODULE):
+        self.module_name = module_name
+        self.aliases: Dict[Tuple[str, str], str] = {}   # (module, name) -> local alias
+        self.defs: List[str] = []
+        self.count = 0
+
+    def _alias(self, module: str, name: str) -> str:
+        """Local alias for ``module.name``, module-qualified so two candidates
+        with the same name in different modules never shadow each other."""
+        key = (module, name)
+        if key not in self.aliases:
+            suffix = re.sub(r"\W+", "_", module).strip("_")
+            alias = name if not any(k[1] == name for k in self.aliases) else f"{name}__{suffix}"
+            self.aliases[key] = alias
+        return self.aliases[key]
+
+    def add(self, link, wall, sp: LoweringSpec) -> Optional[str]:
+        """Register a redirector for ``link``; returns its name, or None if the
+        target cannot be imported from the synthetic module (phantom)."""
+        c = link.target
+        module = c.module or sp.candidate_import_module
+        if not module:
+            return None
+        alias = self._alias(module, c.import_name)
+        name = f"redirector_{self.count}"
+        self.count += 1
+
+        taken: set = set()
+        params, call_args = [], []
+        for a in link.args_for(wall):
+            # the forwarded item is structured text: '**expr', 'kw=expr' or 'expr'.
+            # Match the keyword form on a leading identifier so a forwarded string
+            # constant containing '=' is not split into a broken keyword.
+            m = None if a.startswith("**") else re.match(r"^([A-Za-z_]\w*)=(?!=)", a)
+            if a.startswith("**"):
+                p = _param_name(a[2:], taken)
+                params.append("**" + p)
+                call_args.append("**" + p)
+            elif m:
+                kw = m.group(1)
+                p = _param_name(kw, taken)
+                params.append(p)
+                call_args.append(f"{kw}={p}")
+            else:
+                p = _param_name(a, taken)
+                params.append(p)
+                call_args.append(p)
+        if c.cls:
+            # method target: bound call on a constructed instance
+            body = [f"    {_receiver_stmt(alias)}",
+                    f"    return {_call_expr('__ctaudit_obj.' + c.name, call_args, c.is_async, c.is_async)}"]
+        else:
+            body = [f"    return {_call_expr(alias, call_args, c.is_async, c.is_async)}"]
+        head = "async def" if c.is_async else "def"
+        doc = f'    """{link.id}: {wall.file}:{wall.line} {wall.callee}(...) -> {c.module}.{c.qualname}"""'
+        self.defs.append("\n".join([f"{head} {name}({', '.join(params)}):", doc] + body))
+        return name
+
+    def render(self) -> str:
+        lines = ['"""[ctaudit] generated redirectors — one per resolved dispatch link.',
+                 "",
+                 "IccTA analogue of the synthetic ``IpcSC`` class: each ``redirector_N`` makes",
+                 "the resolved edge explicit as ordinary Python that the taint engine already",
+                 "understands. Only ever referenced from ``if __ctaudit_unreachable__:`` blocks,",
+                 'so it is never imported at runtime."""', ""]
+        by_module: Dict[str, List[str]] = defaultdict(list)
+        for (module, name), alias in self.aliases.items():
+            by_module[module].append(name if alias == name else f"{name} as {alias}")
+        for mod in sorted(by_module):
+            lines.append(f"from {mod} import {', '.join(sorted(by_module[mod]))}")
+        lines.append("")
+        for d in self.defs:
+            lines += ["", d, ""]
+        return "\n".join(lines).rstrip("\n") + "\n"
+
+
+@dataclass
+class LoweringResult:
+    source: str
+    walls: list
+    links: list
+    stats: "object"
+    redirect_module: str = ""      # rendered synthetic module (redirector mode, standalone builder)
+
+
+def lower_wall_file_ex(source, candidates, spec, *, wall_file: str = "",
+                       registry_index=None, links=None, redirect=None,
+                       id_offset: int = 0, id_prefix: str = "") -> LoweringResult:
+    """Full-information lowering: returns the rewritten source plus the wall and
+    link records and statistics. ``links`` (pre-built, e.g. loaded from a
+    hand-written ``links.json``) bypasses candidate joining; otherwise
+    ``links.build_links`` is used. ``redirect`` is a shared
+    ``RedirectModuleBuilder`` for ``emit='redirector'`` across several files."""
+    import links as L
     sp = _coerce_spec(spec)
-    tree = ast.parse(source)
-    walls, chain = find_walls_with_scope(tree, sp)
-    if not walls or not candidates:
-        return source
+    cands = L.coerce_candidates(candidates)
+    if links is None:
+        walls, lnks, stats = L.build_links(source, wall_file, cands, sp,
+                                           registry_index=registry_index,
+                                           id_offset=id_offset, id_prefix=id_prefix)
+    else:
+        walls, lnks, stats = _adopt_links(source, wall_file, links, sp,
+                                          id_offset=id_offset, id_prefix=id_prefix)
+    lowered = [l for l in lnks if l.status == "lowered"]
+    if not lowered:
+        return LoweringResult(source, walls, lnks, stats)
 
-    assign_map = _build_assign_map(tree)   # id(call) -> assign target str
+    own_builder = None
+    if sp.emit == "redirector" and redirect is None:
+        redirect = own_builder = RedirectModuleBuilder()
+
+    by_wall: Dict[str, list] = defaultdict(list)
+    for l in lowered:
+        by_wall[l.wall_id].append(l)
+    bound_names = _module_bindings(source)
     lines = source.splitlines()
-    inserts = {}
-    for call in walls:
-        # method-call wall (e.g. ``tool.run(x)`` where tool is runtime-selected):
-        # forward the call's ACTUAL arguments to the resolved target, not the whole
-        # enclosing scope. Direct-call walls (SK/AutoGPT) keep scope-based forwarding.
-        _is_method_wall = (isinstance(call.func, ast.Attribute)
-                           and isinstance(call.func.value, ast.Name))
-        if _is_method_wall:
-            taint_args = _taint_args(call)
-        else:
-            func_nodes = chain.get(id(call)) or []
-            taint_args = _scope_taint_sources(func_nodes) if func_nodes else _taint_args(call)
-        if not taint_args:
+    inserts: Dict[int, list] = {}
+    call_rows: Dict[int, list] = {}      # ln -> [(link, row offset within block)]
+    for w in walls:
+        group = by_wall.get(w.id)
+        if not group:
             continue
-        resolved = _resolved_calls(taint_args, candidates)
-        assign_target = assign_map.get(id(call))  # None if not an Assign RHS
-        # multi-line calls: insert AFTER the closing paren (end_lineno), not the
-        # opening line, or the block lands inside the argument list.
-        ln = (call.end_lineno or call.lineno) if _is_method_wall else call.lineno
-        base = lines[ln - 1]
+        # Anchor on the enclosing *statement*: after its last line (so a
+        # multi-line call never gets the block spliced into its argument list),
+        # or before its first line. "Before" is forced for statements after
+        # which the block would be unreachable or misplaced (return/raise,
+        # compound statements whose body the wall sits in the header of).
+        before = sp.insert_before or w.stmt_kind in _BEFORE_KINDS
+        anchor = w.stmt_line or w.line                       # statement's FIRST line
+        ln = anchor if before else (w.stmt_end_line or w.end_line)
+        if before and w.chain_line:
+            # a wall in an ``elif``/``else`` header: anchoring on the elif line
+            # would splice the block between the parent ``if`` body and its
+            # ``elif``, re-parenting the whole chain to the inserted ``if``
+            ln = anchor = w.chain_line
+        # indentation always comes from the statement's first line: its closing
+        # line may be continuation-indented (``f(a,\n    b)``), which would emit
+        # an over-indented block and break the file
+        base = lines[anchor - 1]
         indent = " " * (len(base) - len(base.lstrip()))
-        block = [f"{indent}if __ctaudit_unreachable__:  # [ctaudit] resolved dynamic dispatch -> {len(resolved)} targets"]
-        if sp.candidate_import_module:
-            names = sorted({(c[0] or c[1]) for c in candidates})
-            block.append(f"{indent}    from {sp.candidate_import_module} import {', '.join(names)}")
-        if assign_target:
-            # writeback form: propagate return value back to the assigned variable
-            for r in resolved:
-                block.append(f"{indent}    __ctaudit_ret = {r}")
-                block.append(f"{indent}    {assign_target} = __ctaudit_ret")
+        block = [f"{indent}if {GUARD_NAME}:  # [ctaudit] resolved dynamic dispatch -> "
+                 f"{len(group)} targets | wall={w.file}:{w.line}"]
+        rows = []
+        if sp.emit == "redirector":
+            names = []
+            for l in group:
+                l.redirector = redirect.add(l, w, sp) or ""
+                if not l.redirector:
+                    l.status, l.reason = "phantom", "target module unknown; not importable from redirect module"
+                    stats.links_lowered -= 1
+                    stats.links_phantom += 1
+                else:
+                    names.append(l.redirector)
+            if not names:
+                continue
+            block.append(f"{indent}    from {redirect.module_name} import {', '.join(names)}")
+            for l in group:
+                if not l.redirector:
+                    continue
+                expr = _call_expr(l.redirector, l.args_for(w), l.target.is_async, w.in_async)
+                rows.append((l, len(block)))
+                if w.assign_target:
+                    block.append(f"{indent}    __ctaudit_ret = {expr}  # {l.id} -> {l.qualname}")
+                    block.append(f"{indent}    {w.assign_target} = __ctaudit_ret")
+                else:
+                    block.append(f"{indent}    {expr}  # {l.id} -> {l.qualname}")
         else:
-            block += [indent + "    " + r for r in resolved]
-        inserts.setdefault(ln, []).extend(block)
+            # import every target the wall file does not already bind, grouped by
+            # module — without this the inserted call is an undefined name and
+            # Pysa cannot resolve the target (the block is analysed, not run)
+            need: Dict[str, set] = defaultdict(set)
+            for l in group:
+                mod = sp.candidate_import_module or l.target.module
+                if mod and l.target.import_name not in bound_names:
+                    need[mod].add(l.target.import_name)
+            for mod in sorted(need):
+                block.append(f"{indent}    from {mod} import {', '.join(sorted(need[mod]))}")
+            for l in group:
+                c = l.target
+                if c.cls:
+                    # destination-side instrumentation, inline: construct the
+                    # receiver so the target runs as a bound method
+                    block.append(f"{indent}    {_receiver_stmt(c.cls)}")
+                    expr = _call_expr("__ctaudit_obj." + c.name, l.args_for(w), c.is_async, w.in_async)
+                else:
+                    expr = _call_expr(c.name, l.args_for(w), c.is_async, w.in_async)
+                rows.append((l, len(block)))
+                if w.assign_target:
+                    # writeback form: propagate return value back to the assigned variable
+                    block.append(f"{indent}    __ctaudit_ret = {expr}  # {l.id}")
+                    block.append(f"{indent}    {w.assign_target} = __ctaudit_ret")
+                else:
+                    block.append(f"{indent}    {expr}  # {l.id}")
+        key = (ln, before)
+        off0 = len(inserts.get(key, []))
+        inserts.setdefault(key, []).extend(block)
+        call_rows.setdefault(key, []).extend((l, off0 + r) for l, r in rows)
 
     out = list(lines)
-    off = 1 if sp.insert_before else 0          # line ln is at index ln-1; before => ln-1, after => ln
-    for ln in sorted(inserts, reverse=True):
-        for bl in reversed(inserts[ln]):
-            out.insert(ln - off, bl)
+    # line ln is at index ln-1; before => insert at ln-1, after => at ln
+    order = sorted(inserts, key=lambda k: (k[0], not k[1]))
+    for key in reversed(order):
+        ln, before = key
+        at = ln - 1 if before else ln
+        for bl in reversed(inserts[key]):
+            out.insert(at, bl)
+    # final line numbers of the inserted calls (JimpleIndexNumberTag analogue)
+    shift = 0
+    for key in order:
+        ln, before = key
+        start = (ln - 1 if before else ln) + shift   # 0-based index of the block's first line
+        for l, r in call_rows.get(key, []):
+            l.lowered_line = start + r + 1
+        shift += len(inserts[key])
+    stats.lines_added += sum(len(b) for b in inserts.values())
     result = "\n".join(out) + "\n"
-    result = _inject_type_checking_imports(result, candidates, sp.candidate_import_module)
-    return result
+    if sp.emit != "redirector":
+        n_before = result.count("\n")
+        result = _inject_type_checking_imports(result, [l.target for l in lowered], sp.candidate_import_module)
+        # the TYPE_CHECKING block goes above every wall, so each recorded line moves down
+        injected = result.count("\n") - n_before
+        if injected:
+            for l in lowered:
+                if l.lowered_line:
+                    l.lowered_line += injected
+        stats.lines_added += injected
+    stats.redirectors = redirect.count if redirect is not None else 0
+    return LoweringResult(result, walls, lnks, stats,
+                          redirect_module=own_builder.render() if own_builder else "")
+
+
+def _adopt_links(source, wall_file, links, sp, id_offset: int = 0, id_prefix: str = ""):
+    """Attach externally supplied links (hand-written / loaded) to the walls
+    detected in ``source``, matched by line number — the ``ICCLink.linkWithTarget``
+    ordinal remap: the link names *where* the wall is, we find the call unit.
+    Links are copied, so one provider object can be offered to several wall
+    files without the last file's adoption overwriting the others' state."""
+    import copy
+    import links as L
+    walls, _auto, stats = L.build_links(source, wall_file, [], sp,
+                                        id_offset=id_offset, id_prefix=id_prefix)
+    by_line = {w.line: w for w in walls}
+    base = os.path.basename(wall_file) if wall_file else "<source>"
+    out = []
+    for src_link in links:
+        if src_link.file and os.path.basename(src_link.file) != base:
+            continue
+        l = copy.deepcopy(src_link)
+        w = by_line.get(l.line)
+        if w is None:
+            l.status, l.reason = "phantom", f"no wall detected at {base}:{l.line}"
+            stats.links_phantom += 1
+            out.append(l)
+            continue
+        if w.status == "skipped_no_args":
+            l.status, l.reason = "phantom", w.reason
+            stats.links_phantom += 1
+            out.append(l)
+            continue
+        l.wall_id, l.file = w.id, base
+        if l.status == "lowered":
+            w.status, w.reason = "resolved", ""
+            stats.links_lowered += 1
+        stats.links_built += 1
+        out.append(l)
+    for w in walls:
+        if w.status == "resolved" and not any(l.wall_id == w.id and l.status == "lowered" for l in out):
+            w.status, w.reason = "unresolved", "no link supplied for this wall"
+    return walls, out, stats
+
+
+def lower_wall_file(source, candidates, spec, **kw):
+    """Insert an ``if __ctaudit_unreachable__:`` resolved-dispatch block before/after
+    each detected wall (inline emission) — see ``lower_wall_file_ex`` for the
+    records. Writeback: when the wall is the RHS of an Assign (``x = wall(...)``),
+    each resolved call is wrapped as ``__ctaudit_ret = cand(...); x = __ctaudit_ret``
+    so Pysa sees taint flow into the assigned variable without executing the block."""
+    return lower_wall_file_ex(source, candidates, spec, **kw).source
 
 
 if __name__ == "__main__":
+    # Thin legacy entry point; use ``pipeline.py`` for the configurable driver.
     src_root, wall_file = sys.argv[1], sys.argv[2]
-    # default = legacy AutoGPT @command idiom (unchanged). For general use, build a
-    # LoweringSpec (e.g. detect_subscript/getattr/higher_order, tool_decorators=...)
-    # and pass it instead.
     spec = {"tool_decorator": "command", "dispatch_resolver_hint": "command"}
     candidates = collect_candidates(src_root, spec)
     print(f"[ctaudit] collected {len(candidates)} candidate targets")
-    open(wall_file, "w").write(lower_wall_file(open(wall_file).read(), candidates, spec))
-    print(f"[ctaudit] lowered wall in {wall_file}")
+    res = lower_wall_file_ex(open(wall_file).read(), candidates, spec, wall_file=wall_file)
+    open(wall_file, "w").write(res.source)
+    print(f"[ctaudit] lowered wall in {wall_file}: {res.stats.links_lowered} link(s)")

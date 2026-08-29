@@ -187,3 +187,27 @@ codes=[5005, 5005, 5005, 5005, 5001, 5001, 5001]
 ---
 
 *生成: 独立検証セッション（2026-06-26）*
+
+---
+
+## 追記（2026-08-29）: IccTA 型パイプラインへの移行後の再現手順
+
+Q4 の Python スニペットは 2026-06 時点の `dispatch_lowering.py` 向けで、その後の
+汎用検出器の拡張（実行時選択された変数へのメソッド呼び出しも壁とみなす）により
+Stage 1 の spec（`detect_higher_order=True`, ヒント無し）は `vector.py` 内の別の
+`f = g(...); f.m(...)` も壁として拾い、複数行呼び出しの途中にブロックを挿入して
+**構文エラー**になることを確認した（git HEAD `e708cf2` で再現せず）。
+
+現在の再現は `spec.sk_real.json`（2 段 spec）＋ `taintp2x_extension/pipeline.py` で行う
+（README.md「Semantic Kernel verification」参照）。手順の対応は次の通り:
+
+| 旧手順（Q4） | 新手順 |
+|---|---|
+| Stage 1: `detect_higher_order=True` で BoolOp 壁を検出 | `detect_boolop=True, detect_higher_order=False`。BoolOp 壁だけを独立に検出する |
+| （メソッド壁は `wall_method_names` 未指定でも検出されていた） | `wall_method_names` が空なら `t.run(x)` 形の壁は検出しない。これにより `embedding_generator.generate_*` の無関係な壁が消え、壁は 2 件（BoolOp 1・attr 1）になる |
+| Stage 2: 候補 `("InMemoryCollection", "_parse_and_validate_filter", ["self", "filter_str"])` をスコープ変数ダンプ（17 名）＋ `__ctaudit_ret` 昇格で接続 | 候補に `"forward": ["inner_options.filter"]` を明示（解析者が固定するリンク＝IccTA の設定ファイル・プロバイダ相当）。生成は `__ctaudit_obj = InMemoryCollection.__new__(InMemoryCollection); __ctaudit_ret = __ctaudit_obj._parse_and_validate_filter(inner_options.filter)` |
+| Stage 1 の引数もスコープ変数ダンプ | 壁の実引数をそのまま転送: `default_dynamic_filter_function(filter=inner_options.filter, parameters=parameters, **kwargs)` |
+| `if TYPE_CHECKING:` import は手動 | 対象名が壁ファイルで既に束縛済みなら import は挿入しない（`default_dynamic_filter_function` は L33、`InMemoryCollection` は L19-20 の TYPE_CHECKING import で束縛済み）。未束縛のクラス候補には `_inject_type_checking_imports` が自動付与する |
+
+生成される 2 ブロック（計 7 行）は旧 cond_B（スコープ変数 17 名を並べた形）より大幅に短く、
+`links.json` に壁 2 件と各リンクの判定・転送引数・挿入行が残る。
