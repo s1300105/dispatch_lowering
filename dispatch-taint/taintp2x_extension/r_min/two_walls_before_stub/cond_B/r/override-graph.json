@@ -1,0 +1,80 @@
+{
+ "dict.__class_getitem__": [
+  "http.cookies.Morsel"
+ ],
+ "dict.__delitem__": [
+  "collections.Counter"
+ ],
+ "dict.__eq__": [
+  "collections.Counter",
+  "collections.OrderedDict",
+  "http.cookies.Morsel"
+ ],
+ "dict.__getitem__": [
+  "django.http.cookie.SimpleCookie",
+  "logging.config.ConvertingDict",
+  "requests.structures.LookupDict"
+ ],
+ "dict.__init__": [
+  "collections.Counter",
+  "collections.defaultdict",
+  "django.http.cookie.BaseCookie",
+  "django.http.request.QueryDict",
+  "enum._EnumDict",
+  "http.cookies.BaseCookie",
+  "http.cookies.Morsel",
+  "requests.structures.LookupDict"
+ ],
+ "dict.__ior__": [
+  "collections.Counter"
+ ],
+ "dict.__or__": [
+  "collections.Counter",
+  "collections.OrderedDict",
+  "collections.defaultdict"
+ ],
+ "dict.__reversed__": [
+  "collections.OrderedDict"
+ ],
+ "dict.__ror__": [
+  "collections.OrderedDict",
+  "collections.defaultdict"
+ ],
+ "dict.__setitem__": [
+  "enum._EnumDict",
+  "http.cookies.BaseCookie",
+  "http.cookies.Morsel",
+  "psycopg2.extras.RealDictRow"
+ ],
+ "dict.copy": [
+  "collections.Counter",
+  "collections.OrderedDict",
+  "collections.defaultdict",
+  "django.http.request.QueryDict",
+  "django.utils.datastructures.MultiValueDict"
+ ],
+ "dict.fromkeys": [
+  "collections.Counter",
+  "collections.OrderedDict"
+ ],
+ "dict.get": [
+  "logging.config.ConvertingDict",
+  "requests.structures.LookupDict"
+ ],
+ "dict.items": [
+  "collections.OrderedDict"
+ ],
+ "dict.keys": [
+  "collections.OrderedDict"
+ ],
+ "dict.pop": [
+  "collections.OrderedDict",
+  "logging.config.ConvertingDict"
+ ],
+ "dict.values": [
+  "collections.OrderedDict"
+ ],
+ "tools.BaseParser.parse": [
+  "tools.ShellParser"
+ ]
+}

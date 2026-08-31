@@ -1,0 +1,25 @@
+{
+ "kind": "engine_tiers",
+ "generated_by": "engine_walls.extract",
+ "note": "T2 / T3 membership of the excerpt's callables as scanned on the full tree; scan() unions it in because the excerpt keeps no caller records",
+ "t2": [
+  "semantic_kernel.data.vector.VectorSearch._create_kernel_function.search_wrapper"
+ ],
+ "reach": [
+  "semantic_kernel.connectors.ai.prompt_execution_settings.PromptExecutionSettings.__init__",
+  "semantic_kernel.data._shared.create_options",
+  "semantic_kernel.data.vector.FieldTypes.__str__",
+  "semantic_kernel.data.vector.VectorSearch._build_filter",
+  "semantic_kernel.data.vector.VectorSearch._generate_vector_from_values",
+  "semantic_kernel.data.vector.VectorSearch._get_vector_search_results_from_results",
+  "semantic_kernel.data.vector.VectorSearch.hybrid_search",
+  "semantic_kernel.data.vector.VectorSearch.search",
+  "semantic_kernel.data.vector.VectorStoreCollectionDefinition.get_names",
+  "semantic_kernel.data.vector.VectorStoreCollectionDefinition.get_storage_names",
+  "semantic_kernel.data.vector.VectorStoreCollectionDefinition.try_get_vector_field",
+  "semantic_kernel.data.vector.VectorStoreRecordHandler._deserialize_dict_to_data_model",
+  "semantic_kernel.data.vector.VectorStoreRecordHandler._deserialize_store_model_to_data_model",
+  "semantic_kernel.data.vector.VectorStoreRecordHandler.deserialize",
+  "semantic_kernel.utils.list_handler.desync_list"
+ ]
+}

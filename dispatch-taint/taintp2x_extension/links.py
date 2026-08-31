@@ -78,6 +78,8 @@ class Candidate:
     match_level: int = 2             # 1 registry-literal member, 2 decorator/registration, 3 scan-all
     forward: List[str] = field(default_factory=list)   # explicit argument expressions to forward
                                                         # (analyst-pinned link; overrides the wall's)
+    evidence: str = ""               # why this is a candidate (decorator @x, registration call, BoolOp member, ...)
+    importable: bool = True          # False for a nested def: it can be named but not imported (link -> phantom)
 
     @property
     def qualname(self) -> str:
@@ -171,7 +173,12 @@ def module_of(path: str, root: str = "") -> str:
 @dataclass
 class WallRecord:
     """One detected wall (IccTA ``ExitPoints`` row). ``status`` explains walls
-    that produced no lowered link."""
+    that produced no lowered link.
+
+    ``file`` is the wall file's path RELATIVE TO the source root, POSIX
+    separators (``langchain/prompts/base.py``) — never a bare basename, which
+    made ``prompts/base.py`` and ``chains/base.py`` the same wall (review C1).
+    Every cross-artifact match of a wall is keyed by ``(file, line, col)``."""
     id: str
     file: str
     line: int
@@ -188,19 +195,34 @@ class WallRecord:
     is_method_wall: bool = False
     in_async: bool = False
     taint_args: List[str] = field(default_factory=list)
-    status: str = "resolved"             # resolved | skipped_no_args | unresolved
+    status: str = "resolved"             # resolved | skipped_no_args | unresolved | rejected_by_review | unmatched_position
     reason: str = ""
+    # position and review metadata (engine_walls / plan.json; IccTA's tagged ExitPoints row)
+    col: int = 0
+    resolver: str = ""                   # what selects the callee (REG / self._get_command / getattr(o))
+    key_expr: str = ""                   # the dispatch key expression
+    engine_status: str = ""              # unresolved:<reason> | resolved_stub | resolved_obscure | resolved_dispatch:<api>
+    engine_reason: str = ""
+    engine_tier: str = ""                # T1 | T2 | T3 | none
+    origin: str = "ast"                  # ast | engine | anchor:<name> | catalog:<FW>:<API> | review
+    confidence: str = ""                 # confirmed | proposed
+    lowered_line: int = 0                # the wall call's line in the REWRITTEN (cond_B) file, set by the
+                                         # pipeline after lowering (review C1 / K2); 0 = not lowered / unknown
 
 
 @dataclass
 class DispatchLink:
-    """One wall -> target edge (IccTA ``Links`` row)."""
+    """One wall -> target edge (IccTA ``Links`` row). ``file`` follows
+    ``WallRecord.file`` (relative to the source root)."""
     id: str
     wall_id: str
     file: str
     line: int
     target: Candidate
     match_level: int = 2
+    col: int = 0                         # the wall call's column (review C1): two walls on one line
+                                         # (vanna base.py:1685, litellm weights_biases.py:72) are told
+                                         # apart by (line, col); 0 in a hand-written link = "by line"
     status: str = "lowered"              # lowered | filtered_registry | unreasonable | phantom
     reason: str = ""
     taint_args: List[str] = field(default_factory=list)  # forwarded args (empty -> the wall's)
@@ -223,6 +245,10 @@ class LoweringStats:
     walls_detected: int = 0
     walls_by_idiom: Dict[str, int] = field(default_factory=dict)
     walls_skipped_no_args: int = 0
+    walls_rejected: int = 0              # rejected_by_review (plan / reject_walls)
+    walls_unmatched: int = 0             # a pinned wall_position with no call at that place
+    walls_by_engine_status: Dict[str, int] = field(default_factory=dict)
+    walls_by_origin: Dict[str, int] = field(default_factory=dict)
     candidates_total: int = 0
     links_built: int = 0
     links_lowered: int = 0
@@ -378,30 +404,65 @@ def index_registries(paths) -> Dict[str, frozenset]:
             if k not in untrusted and v and bindings.get(k, 0) == 1}
 
 
+def _content_key(path: str) -> str:
+    import hashlib
+    try:
+        with open(path, "rb") as fh:
+            return hashlib.sha1(fh.read()).hexdigest()
+    except OSError:
+        return ""
+
+
 def _iter_py_files(paths):
-    """Yield each .py file under ``paths`` exactly once (paths may overlap —
-    e.g. a candidate root that already contains the wall files; scanning a file
-    twice would look like a rebinding and wrongly untrust its registries)."""
+    """Yield each .py file under ``paths`` exactly once. Paths may overlap or
+    be COPIES of one another (review C4 / K6: the lowering stage scans the
+    wall tree ``cond_B/src`` next to the candidate tree ``<target>/src`` — the
+    same registry dict literal seen through two roots must count as ONE
+    binding, or ``bindings == 2`` untrusts it and the narrowing that the dry
+    run applied disappears from the real cond_B). A file is therefore skipped
+    when its realpath or its CONTENT hash was already seen (the same file
+    through two roots, a copy given as a file root, a copied tree — under the
+    same or a different relative layout). Realpath alone cannot tell copies
+    apart.
+
+    Review C4 caveat: a file at the same root-relative path under two
+    directory roots is a copy ONLY when its bytes agree. A twin that DIFFERS
+    (tree a: ``REGISTRY = {x}``; tree b: ``REGISTRY = {x, y}``) is a second
+    definition and is yielded too, so ``index_registries`` sees two bindings
+    and untrusts the name — exactly as it already did when the twin was given
+    as a FILE root. Skipping on the relative path alone silently kept the
+    first tree's literal and trusted ``{x}``."""
     if isinstance(paths, str):
         paths = [paths]
-    seen = set()
+    seen_real, seen_hash = set(), set()
+
+    def fresh(full: str) -> bool:
+        real = os.path.realpath(full)
+        if real in seen_real:
+            return False
+        h = _content_key(full)
+        if h and h in seen_hash:
+            return False            # identical content counts once, whatever its path
+        # review C4 caveat: no relative-path skip — the same root-relative path
+        # with different content is a different definition and is indexed too
+        seen_real.add(real)
+        if h:
+            seen_hash.add(h)
+        return True
+
     for p in paths:
         if os.path.isfile(p):
-            real = os.path.realpath(p)
-            if p.endswith(".py") and real not in seen:
-                seen.add(real)
+            if p.endswith(".py") and fresh(p):
                 yield p
             continue
         for root, _dirs, files in os.walk(p):
             if any(x in root.split(os.sep) for x in (".venv", "site-packages", "__pycache__")):
                 continue
-            for f in files:
+            for f in sorted(files):
                 if not f.endswith(".py"):
                     continue
                 full = os.path.join(root, f)
-                real = os.path.realpath(full)
-                if real not in seen:
-                    seen.add(real)
+                if fresh(full):
                     yield full
 
 
@@ -433,7 +494,7 @@ def _signature_known(cand: Candidate) -> bool:
     returned (``@tool`` -> ``StructuredTool``, ``functools.wraps`` wrappers)."""
     if cand.decorated:
         return False
-    if cand.origin == "explicit":
+    if cand.origin in ("explicit", "boolop_member", "anchor"):
         return bool(cand.params or cand.kwonly or cand.has_kwargs or cand.has_varargs)
     return True
 
@@ -567,6 +628,19 @@ def _registry_of_call(call: ast.Call, scope_chain, bindings):
     # method wall on a runtime-bound receiver: ``t = REG[k]; t.run(x)`` / ``t = a or b; t.run(x)``
     elif isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name):
         name = fn.value.id
+    # inline receivers (review M1): ``REG[k].run(x)`` reads REG directly;
+    # ``(a or b).run(x)`` names its alternatives (an open one — a parameter,
+    # a call — disables narrowing, as in ``_runtime_bindings``)
+    elif isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Subscript):
+        return _final(fn.value.value), None
+    elif isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.BoolOp):
+        open_names = set()
+        for s in scope_chain or []:
+            open_names |= _param_names(s)
+        members = [_final(e) for e in fn.value.values]
+        if any(m is None or m in open_names for m in members):
+            return None, None
+        return None, members
     if name:
         b = _lookup_binding(name, scope_chain, bindings)
         if b:
@@ -685,6 +759,16 @@ def _stmt_map(tree):
     return stmts, chains
 
 
+def _inline_receiver(node) -> bool:
+    """A receiver expression that SELECTS the callee at the call site itself
+    (review M1): ``self.tools[name].run(a)``, ``REG[k].m()``, ``getattr(o, k).m()``,
+    ``(a or b).m()``. Same vocabulary as ``engine_walls.describe_call``."""
+    import dispatch_lowering as dl
+    if isinstance(node, ast.Await):
+        node = node.value
+    return isinstance(node, (ast.Subscript, ast.BoolOp)) or dl._is_getattr_call(node)
+
+
 def _idiom_of(call: ast.Call, sp, scope_chain, bindings) -> str:
     fn = call.func
     if isinstance(fn, ast.Subscript):
@@ -695,7 +779,7 @@ def _idiom_of(call: ast.Call, sp, scope_chain, bindings) -> str:
         return "param_call"
     if isinstance(fn, ast.Attribute) and fn.attr in sp.wall_attr_names:
         return "attr_call"
-    if isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name):
+    if isinstance(fn, ast.Attribute) and (isinstance(fn.value, ast.Name) or _inline_receiver(fn.value)):
         return "method_call"
     if isinstance(fn, ast.Name):
         b = _lookup_binding(fn.id, scope_chain, bindings)
@@ -704,9 +788,95 @@ def _idiom_of(call: ast.Call, sp, scope_chain, bindings) -> str:
     return "higher_order(hint)" if sp._legacy else "higher_order"
 
 
+def resolve_relative_module(module: Optional[str], level: int, wall_file: str, wall_module: str) -> str:
+    """Absolute dotted module of ``from <module> import x`` with ``level``
+    leading dots, seen from ``wall_module`` (the wall file's own module).
+    ``from .impl import a`` in ``pkg.sub.walls`` -> ``pkg.sub.impl``;
+    ``from .. import x`` in ``pkg/sub/__init__.py`` -> ``pkg``. ``''`` when the
+    relative import climbs above the known package (review C6 item 6: the
+    level used to be dropped, so the redirector imported ``impl`` — an
+    unresolvable name, counted as lowered)."""
+    if not level:
+        return module or ""
+    parts = wall_module.split(".") if wall_module else []
+    if os.path.basename(wall_file or "") != "__init__.py":
+        parts = parts[:-1]                    # the wall's own package
+    drop = level - 1
+    if drop >= len(parts):
+        return ""                             # climbs above the known package
+    parts = parts[:len(parts) - drop]
+    return ".".join(parts + ([module] if module else []))
+
+
+def _module_file_exists(module: str, root: str) -> bool:
+    if not module or not root:
+        return False
+    base = os.path.join(root, *module.split("."))
+    return os.path.exists(base + ".py") or os.path.exists(os.path.join(base, "__init__.py"))
+
+
+def _boolop_member_candidate(name: str, tree, wall_file: str, wall_module: str,
+                             src_root: str = "") -> Optional[Candidate]:
+    """A BoolOp alternative as a candidate: a module-level def of the wall file,
+    an imported name (``from m import name``; signature unknown), or a module
+    level alias of either (``PRIMARY = default_handler``). None for anything
+    else (a parameter, a call, an attribute chain). A relative import is
+    resolved against the wall module; when the resolved module has no file
+    under ``src_root`` the candidate is ``importable=False`` (phantom, not a
+    silently unresolvable ``from impl import a``)."""
+    if not name or "." in name:
+        return None
+    seen = set()
+    for _hop in range(3):
+        if name in seen:
+            return None
+        seen.add(name)
+        for node in getattr(tree, "body", []):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
+                c = Candidate.from_def(node, None, wall_module, wall_file, origin="boolop_member", match_level=1)
+                c.evidence = f"BoolOp member; def in {os.path.basename(wall_file) or '<source>'}:{node.lineno}"
+                return c
+            if isinstance(node, ast.ImportFrom):
+                for a in node.names:
+                    if (a.asname or a.name) == name:
+                        mod = resolve_relative_module(node.module, node.level or 0, wall_file, wall_module)
+                        importable = True
+                        if node.level and src_root and not _module_file_exists(mod, src_root):
+                            importable = False
+                        shown = ("." * (node.level or 0)) + (node.module or "")
+                        return Candidate(cls=None, name=a.name, module=mod,
+                                         origin="boolop_member", match_level=1, importable=importable,
+                                         evidence=f"BoolOp member; imported from {shown}"
+                                         + (f" (resolved to {mod or '?'}, not under the source root)" if not importable else ""))
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Name) \
+                    and any(isinstance(t, ast.Name) and t.id == name for t in node.targets):
+                name = node.value.id      # alias: follow one hop
+                break
+        else:
+            return None
+    return None
+
+
+def wall_file_key(wall_file: str, src_root: str = "") -> str:
+    """The ``WallRecord.file`` / ``DispatchLink.file`` value (review C1 / K1):
+    ``wall_file`` relative to ``src_root`` with POSIX separators when a root is
+    given, else the normalized path as passed. ``<source>`` for in-memory
+    sources."""
+    if not wall_file:
+        return "<source>"
+    if src_root:
+        try:
+            rel = os.path.relpath(os.path.abspath(wall_file), os.path.abspath(src_root))
+        except ValueError:                      # different drives (Windows)
+            rel = wall_file
+        if not rel.startswith(".."):
+            return rel.replace(os.sep, "/")
+    return os.path.normpath(wall_file).replace(os.sep, "/")
+
+
 def build_links(source: str, wall_file: str, candidates, spec, *,
                 registry_index: Optional[Dict[str, frozenset]] = None,
-                id_offset: int = 0, id_prefix: str = ""):
+                id_offset: int = 0, id_prefix: str = "", src_root: str = ""):
     """Join walls in ``source`` with ``candidates`` into (walls, links, stats).
 
     Precision filters, in order (each decision is recorded on the link):
@@ -716,28 +886,63 @@ def build_links(source: str, wall_file: str, candidates, spec, *,
          legacy mode and by ``spec.narrow=False``.
       2. argument compatibility — drop candidates whose signature cannot
          accept the wall's actual arguments (``status='unreasonable'``).
+
+    ``src_root`` (K1): the records' ``file`` is ``wall_file`` relative to it;
+    the pipeline passes its source root. Basenames only ever appear in
+    human-readable comments / evidence strings.
     """
     import dispatch_lowering as dl   # local import: dispatch_lowering imports us lazily too
 
     sp = dl._coerce_spec(spec)
     cands = coerce_candidates(candidates)
-    tree = ast.parse(source)
-    walls_ast, chain = dl.find_walls_with_scope(tree, sp)
+    # the AST side of the review row (resolver / key / BoolOp members incl.
+    # open alternatives) — same vocabulary as the engine-driven draft. Its
+    # tree IS the tree walked below, so scope lookups see the same nodes.
+    import engine_walls as EW
+    fidx = EW._FileIndex(wall_file or "<source>", source=source)
+    tree = fidx.tree
+    walls_ast, chain, unmatched, pos_meta = dl.find_walls_with_scope(tree, sp, wall_file)
     assign_map = dl._build_assign_map(tree)
     bindings = _runtime_bindings(tree)
     stmts, chains = _stmt_map(tree)
     registry_index = registry_index or {}
-    base = os.path.basename(wall_file) if wall_file else "<source>"
+    base = wall_file_key(wall_file, src_root or sp.candidate_module_root)   # review C1: relative path, not basename
+    wall_module = module_of(wall_file, sp.candidate_module_root) if wall_file else ""
+    member_root = src_root or sp.candidate_module_root
+    rejected_at = [dl._parse_at(r) for r in sp.reject_walls]
+
+    def _rejected(entry, line, col) -> bool:
+        if entry is not None and entry.get("accept") is False:
+            return True
+        for path, rl, rc in rejected_at:
+            if rl == line and (rc is None or rc == col) and dl._path_matches(path, wall_file):
+                return True
+        return False
 
     stats = LoweringStats(files=1, candidates_total=len(cands))
     walls: List[WallRecord] = []
     links: List[DispatchLink] = []
     wid = id_offset
     lid = 0
+    for e in unmatched:
+        w = WallRecord(id=f"{id_prefix}W{wid}", file=base, line=e["_line"], end_line=e["_line"],
+                       idiom="?", callee=e.get("callee", ""), col=e["_col"] or 0,
+                       status="unmatched_position", reason=f"no call at {e['at']}",
+                       origin=e.get("origin", "review"), engine_status=e.get("engine_status", ""),
+                       engine_tier=e.get("engine_tier", ""), confidence=e.get("confidence", ""))
+        wid += 1
+        stats.walls_unmatched += 1
+        stats.walls_by_origin[w.origin] = stats.walls_by_origin.get(w.origin, 0) + 1
+        walls.append(w)
     for call in walls_ast:
+        # ``t.run(x)`` and the inline forms ``REG[k].run(x)`` / ``getattr(o, k).run(x)``
+        # / ``(a or b).run(x)`` (review M1) go through the receiver's dispatch
+        # method: their arguments are not the target's signature
         is_method_wall = (isinstance(call.func, ast.Attribute)
-                          and isinstance(call.func.value, ast.Name))
+                          and (isinstance(call.func.value, ast.Name) or _inline_receiver(call.func.value)))
         func_nodes = chain.get(id(call)) or []
+        entry = pos_meta.get(id(call))
+        desc = EW.describe_call(call, fidx) if fidx.calls else {}
         # recall-first fallback list (see forward_args step 4): every parameter
         # and local of the enclosing scope chain, minus the enclosing method's
         # own receiver, which is never an argument of the dispatched call
@@ -753,7 +958,13 @@ def build_links(source: str, wall_file: str, candidates, spec, *,
         w = WallRecord(
             id=f"{id_prefix}W{wid}", file=base, line=call.lineno,
             end_line=(call.end_lineno or call.lineno), idiom=idiom,
-            callee=ast.unparse(call.func),
+            callee=ast.unparse(call.func), col=call.col_offset,
+            resolver=desc.get("resolver", ""), key_expr=desc.get("key_expr", ""),
+            origin=(entry or {}).get("origin", "ast"),
+            engine_status=(entry or {}).get("engine_status", ""),
+            engine_reason=(entry or {}).get("engine_reason", ""),
+            engine_tier=(entry or {}).get("engine_tier", ""),
+            confidence=(entry or {}).get("confidence", ""),
             stmt_line=(st.lineno if st is not None else call.lineno),
             stmt_end_line=((st.end_lineno or st.lineno) if st is not None else (call.end_lineno or call.lineno)),
             stmt_kind=(type(st).__name__ if st is not None else ""),
@@ -767,6 +978,54 @@ def build_links(source: str, wall_file: str, candidates, spec, *,
         wid += 1
         stats.walls_detected += 1
         stats.walls_by_idiom[idiom] = stats.walls_by_idiom.get(idiom, 0) + 1
+        stats.walls_by_origin[w.origin] = stats.walls_by_origin.get(w.origin, 0) + 1
+        if w.engine_status:
+            k = w.engine_status.split(":")[0]
+            stats.walls_by_engine_status[k] = stats.walls_by_engine_status.get(k, 0) + 1
+
+        # 0. review: a rejected wall is kept as a row, never linked
+        if _rejected(entry, call.lineno, call.col_offset):
+            w.status, w.reason = "rejected_by_review", "rejected in plan / reject_walls"
+            stats.walls_rejected += 1
+            walls.append(w)
+            continue
+
+        # BoolOp members that are defs are candidates of THIS wall (level 1)
+        # whatever the recovery spec found — ``f = a or b; f(x)`` names its
+        # own destination set (the explicit-Intent case). An open alternative
+        # (a parameter, a call) contributes nothing but disables narrowing.
+        wall_cands = list(cands)
+        if not sp._legacy and desc.get("idiom") == "boolop" and desc.get("members"):
+            known = {(c.cls, c.name, c.module) for c in wall_cands}
+            for m in desc["members"]:
+                mc = _boolop_member_candidate(m, tree, wall_file, wall_module, src_root=member_root)
+                if mc is not None and (mc.cls, mc.name, mc.module) not in known:
+                    known.add((mc.cls, mc.name, mc.module))
+                    wall_cands.append(mc)
+            stats.candidates_total = max(stats.candidates_total, len(wall_cands))
+        # anchor members (anchoring.py via the plan): the registry this wall
+        # reads names its members in the source — level-1 candidates, and the
+        # narrowing set when the anchor is closed
+        anchor_names: Optional[frozenset] = None
+        if entry and entry.get("anchor_members"):
+            known = {(c.cls, c.name, c.module) for c in wall_cands}
+            names = set()
+            for m in entry["anchor_members"]:
+                try:
+                    mc = Candidate.from_any(m)
+                except Exception:
+                    continue
+                mc.origin, mc.match_level = "anchor", 1
+                names.add(mc.name)
+                if mc.cls:
+                    names.add(mc.cls)
+                    names.add(mc.qualname)
+                if (mc.cls, mc.name, mc.module) not in known:
+                    known.add((mc.cls, mc.name, mc.module))
+                    wall_cands.append(mc)
+            stats.candidates_total = max(stats.candidates_total, len(wall_cands))
+            if entry.get("anchor_closed") and names:
+                anchor_names = frozenset(names)
 
         # 1. registry narrowing
         narrow_to: Optional[frozenset] = None
@@ -774,18 +1033,69 @@ def build_links(source: str, wall_file: str, candidates, spec, *,
         if not sp._legacy and sp.narrow:
             if members:
                 narrow_to, narrow_src = frozenset(members), "boolop"
+            elif anchor_names is not None:
+                narrow_to, narrow_src = anchor_names, f"anchor {entry.get('anchor', '')}"
             elif reg and reg in registry_index:
                 narrow_to, narrow_src = registry_index[reg], f"registry {reg}"
         if narrow_to is not None:
             w.members = sorted(narrow_to)
 
-        for c in cands:
+        # method-name compatibility (the UnreasonableLinksRemover principle at
+        # the name level): ``x.m(...)`` can only reach a class method named
+        # ``m`` or an impl method ``m`` forwards to (run -> _run). Function
+        # candidates are kept (a decorated function is wrapped into the
+        # framework's tool object and reached through its dispatch method), and
+        # so are anchor / BoolOp / explicit candidates (the source names them).
+        # A callable-valued attribute (NonMethodAttribute) holds arbitrary defs.
+        wall_attr = call.func.attr if isinstance(call.func, ast.Attribute) else ""
+        name_check = bool(wall_attr) and sp.filter_unreasonable and not sp._legacy \
+            and (entry or {}).get("engine_status", "") != "unresolved:NonMethodAttribute"
+        allowed_names = ({wall_attr} | set(dl.impl_map_of(sp).get(wall_attr, ()))) if name_check else set()
+
+        for c in wall_cands:
             args = forward_args(call, c, scope_args)
             link = DispatchLink(id=f"{id_prefix}L{id_offset + lid}", wall_id=w.id, file=base,
-                                line=call.lineno, target=c, match_level=c.match_level,
+                                line=call.lineno, col=w.col, target=c, match_level=c.match_level,
                                 taint_args=args)
             lid += 1
             stats.links_built += 1
+            if name_check and c.cls and c.origin not in ("anchor", "boolop_member", "explicit") \
+                    and c.name not in allowed_names:
+                link.status = "unreasonable"
+                link.reason = f"method {c.qualname} cannot be the callee of .{wall_attr}(...) (allowed: {sorted(allowed_names)})"
+                stats.links_unreasonable += 1
+                links.append(link)
+                continue
+            # an impl method recovered through a base class (``_run`` / ``_execute``)
+            # is reached only via the framework's dispatch method: on a bare-name
+            # wall (``fn(x)``, ``Session()``) it is unreasonable unless the
+            # catalogue says calling the object itself dispatches to it
+            # (``BaseTool.__call__ -> execute``)
+            if not wall_attr and c.cls and c.origin == "base_class" and sp.filter_unreasonable and not sp._legacy \
+                    and c.name not in dl.impl_map_of(sp).get("__call__", ()):
+                link.status = "unreasonable"
+                link.reason = f"{c.qualname} is an impl method reached through the dispatch API, not by a bare call"
+                stats.links_unreasonable += 1
+                links.append(link)
+                continue
+            # an S2 wall is a call the engine resolved to a stub / abstract
+            # METHOD: its runtime callee is an override, and a plain function
+            # cannot override a method — registry / tool-list functions leaking
+            # in from the target-wide spec are unreasonable here (an anchored
+            # or explicit def is the analyst's word and stays)
+            if name_check and not c.cls and c.origin not in ("anchor", "boolop_member", "explicit") \
+                    and (entry or {}).get("engine_status", "") in ("resolved_stub", "resolved_obscure"):
+                link.status = "unreasonable"
+                link.reason = f"function {c.qualname} cannot override the stub method .{wall_attr}(...)"
+                stats.links_unreasonable += 1
+                links.append(link)
+                continue
+            if not c.importable:
+                link.status = "phantom"
+                link.reason = f"{c.qualname} is a nested def ({c.evidence}); it can be named but not imported"
+                stats.links_phantom += 1
+                links.append(link)
+                continue
             if narrow_to is not None:
                 if c.name in narrow_to or c.qualname in narrow_to or (c.cls and c.cls in narrow_to):
                     link.match_level = 1
@@ -805,9 +1115,11 @@ def build_links(source: str, wall_file: str, candidates, spec, *,
             # the level cap grades the LINK: narrowing above may have promoted a
             # decorator/scan-all candidate to level 1 (a member of the registry
             # this wall actually reads)
-            if link.match_level > sp.match_level:
+            level_cap = int((entry or {}).get("match_level", sp.match_level))
+            if link.match_level > level_cap:
                 link.status = "filtered_level"
-                link.reason = f"match_level {link.match_level} > allowed {sp.match_level}"
+                link.reason = f"match_level {link.match_level} > allowed {level_cap}" + (
+                    " (per-wall cap from the plan)" if entry and "match_level" in entry else "")
                 stats.links_filtered_level += 1
                 links.append(link)
                 continue
@@ -836,13 +1148,20 @@ def build_links(source: str, wall_file: str, candidates, spec, *,
 # Persistence
 # --------------------------------------------------------------------------- #
 def dump_links(path: str, walls: List[WallRecord], links: List[DispatchLink],
-               stats: Optional[LoweringStats] = None) -> None:
+               stats: Optional[LoweringStats] = None, extra: Optional[dict] = None) -> None:
+    """Persist walls + links (+ stats). ``extra`` (review C7 / K4) is merged
+    into the top-level object — the pipeline records
+    ``{"tool_version": toolver.tool_version()}`` so a row can tell which code
+    and catalogue produced its cond_B."""
     data = {
         "walls": [asdict(w) for w in walls],
         "links": [asdict(l) for l in links],
     }
     if stats is not None:
         data["stats"] = stats.to_dict()
+    for k, v in (extra or {}).items():
+        if k not in ("walls", "links", "stats"):
+            data[k] = v
     with open(path, "w") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
@@ -852,7 +1171,8 @@ def load_links(path: str) -> Tuple[List[WallRecord], List[DispatchLink]]:
     ``IccLinksConfigFile`` analogue). Hand-written files may omit ``walls``;
     each link then needs ``file``, ``line`` and ``target``."""
     data = json.load(open(path))
-    walls = [WallRecord(**w) for w in data.get("walls", [])]
+    walls = [WallRecord(**{k: v for k, v in w.items() if k in WallRecord.__dataclass_fields__})
+             for w in data.get("walls", [])]
     links = []
     for i, l in enumerate(data.get("links", [])):
         l = dict(l)

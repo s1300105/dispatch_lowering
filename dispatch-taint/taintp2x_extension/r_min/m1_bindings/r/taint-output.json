@@ -1,0 +1,7 @@
+{"file_version":3,"config":{"repo":"/tmp/ctaudit_m1_bindings/cond_A"}}
+{"kind":"model","data":{"callable":"app.lambda_call","filename":"src/app.py","callable_line":27,"sources":[{"line":28,"start":17,"end":35},{"line":29,"start":16,"end":57},{"line":29,"start":20,"end":37},{"line":29,"start":32,"end":36}]}}
+{"kind":"model","data":{"callable":"app.llm_decide","filename":"src/app.py","callable_line":4,"sources":[{"kept":true}]}}
+{"kind":"model","data":{"callable":"app.resolved_then_comprehension","filename":"src/app.py","callable_line":20,"sources":[{"line":21,"start":17,"end":35},{"line":24,"start":20,"end":24}]}}
+{"kind":"model","data":{"callable":"subprocess.run","filename":"*","path":"/home/yudai/Project/research/Master_Project/dispatch-taint-system/.venv/lib/pyre_check/typeshed/stdlib/subprocess.pyi","callable_line":304,"modes":["Obscure"]}}
+{"kind":"model","data":{"callable":"tools.run_shell","filename":"src/tools.py","callable_line":4}}
+{"kind":"model","data":{"callable":"app.Agent.step","filename":"src/app.py","callable_line":12}}

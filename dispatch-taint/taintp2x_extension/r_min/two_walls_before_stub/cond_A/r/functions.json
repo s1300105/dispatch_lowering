@@ -1,0 +1,9 @@
+{"file_version":3,"config":{"repo":"/tmp/ctaudit_bench_two_walls_before_stub_u45adgh4/inline_A/two_walls_before_stub"}}
+{"kind":"function","data":{"name":"dict.__getitem__"}}
+{"kind":"function","data":{"name":"subprocess.run"}}
+{"kind":"function","data":{"name":"app.Agent.step"}}
+{"kind":"function","data":{"name":"app.llm_decide"}}
+{"kind":"function","data":{"name":"tools.$toplevel"}}
+{"kind":"function","data":{"name":"tools.BaseParser.parse"}}
+{"kind":"function","data":{"name":"tools.ShellParser.parse"}}
+{"kind":"function","data":{"name":"tools.run_shell"}}

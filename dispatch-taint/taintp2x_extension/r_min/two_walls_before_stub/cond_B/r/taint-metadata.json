@@ -1,0 +1,459 @@
+{
+ "filename_spec": "taint-output.json",
+ "root": "/tmp/ctaudit_bench_two_walls_before_stub_u45adgh4/inline/two_walls_before_stub",
+ "tool": "pysa",
+ "version": "7873fbf76ce7a1f3b02a527f4e2ee8ac50ca6843",
+ "stats": {
+  "skipped_overrides": [],
+  "model_verification_errors": [
+   {
+    "description": "`httpx.get` is not part of the environment, no module `httpx` in search path.",
+    "line": 31,
+    "column": 0,
+    "stop_line": 31,
+    "stop_column": 52,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`httpx.post` is not part of the environment, no module `httpx` in search path.",
+    "line": 32,
+    "column": 0,
+    "stop_line": 32,
+    "stop_column": 66,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`httpx.put` is not part of the environment, no module `httpx` in search path.",
+    "line": 33,
+    "column": 0,
+    "stop_line": 33,
+    "stop_column": 65,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`httpx.patch` is not part of the environment, no module `httpx` in search path.",
+    "line": 34,
+    "column": 0,
+    "stop_line": 34,
+    "stop_column": 67,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`httpx.delete` is not part of the environment, no module `httpx` in search path.",
+    "line": 35,
+    "column": 0,
+    "stop_line": 35,
+    "stop_column": 47,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`httpx.head` is not part of the environment, no module `httpx` in search path.",
+    "line": 36,
+    "column": 0,
+    "stop_line": 36,
+    "stop_column": 45,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`httpx.request` is not part of the environment, no module `httpx` in search path.",
+    "line": 37,
+    "column": 0,
+    "stop_line": 37,
+    "stop_column": 64,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`httpx.Client.get` is not part of the environment, no module `httpx` in search path.",
+    "line": 38,
+    "column": 0,
+    "stop_line": 38,
+    "stop_column": 65,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`httpx.Client.post` is not part of the environment, no module `httpx` in search path.",
+    "line": 39,
+    "column": 0,
+    "stop_line": 39,
+    "stop_column": 79,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`httpx.Client.request` is not part of the environment, no module `httpx` in search path.",
+    "line": 40,
+    "column": 0,
+    "stop_line": 40,
+    "stop_column": 77,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`httpx.Client.build_request` is not part of the environment, no module `httpx` in search path.",
+    "line": 41,
+    "column": 0,
+    "stop_line": 41,
+    "stop_column": 83,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`httpx.AsyncClient.get` is not part of the environment, no module `httpx` in search path.",
+    "line": 42,
+    "column": 0,
+    "stop_line": 42,
+    "stop_column": 70,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`httpx.AsyncClient.post` is not part of the environment, no module `httpx` in search path.",
+    "line": 43,
+    "column": 0,
+    "stop_line": 43,
+    "stop_column": 84,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`httpx.AsyncClient.request` is not part of the environment, no module `httpx` in search path.",
+    "line": 44,
+    "column": 0,
+    "stop_line": 44,
+    "stop_column": 82,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`aiohttp.client.ClientSession.get` is not part of the environment, no module `aiohttp` in search path.",
+    "line": 47,
+    "column": 0,
+    "stop_line": 47,
+    "stop_column": 73,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`aiohttp.client.ClientSession.post` is not part of the environment, no module `aiohttp` in search path.",
+    "line": 48,
+    "column": 0,
+    "stop_line": 48,
+    "stop_column": 86,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`aiohttp.client.ClientSession.put` is not part of the environment, no module `aiohttp` in search path.",
+    "line": 49,
+    "column": 0,
+    "stop_line": 49,
+    "stop_column": 79,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`aiohttp.client.ClientSession.patch` is not part of the environment, no module `aiohttp` in search path.",
+    "line": 50,
+    "column": 0,
+    "stop_line": 50,
+    "stop_column": 81,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`aiohttp.client.ClientSession.delete` is not part of the environment, no module `aiohttp` in search path.",
+    "line": 51,
+    "column": 0,
+    "stop_line": 51,
+    "stop_column": 76,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`aiohttp.client.ClientSession.request` is not part of the environment, no module `aiohttp` in search path.",
+    "line": 52,
+    "column": 0,
+    "stop_line": 52,
+    "stop_column": 85,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`aiohttp.client.ClientSession._request` is not part of the environment, no module `aiohttp` in search path.",
+    "line": 53,
+    "column": 0,
+    "stop_line": 53,
+    "stop_column": 93,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`urllib3.poolmanager.PoolManager.request` is not part of the environment, no module `urllib3` in search path.",
+    "line": 56,
+    "column": 0,
+    "stop_line": 56,
+    "stop_column": 88,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "`urllib3.poolmanager.PoolManager.urlopen` is not part of the environment, no module `urllib3` in search path.",
+    "line": 57,
+    "column": 0,
+    "stop_line": 57,
+    "stop_column": 88,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/ssrf_sinks_ext.pysa",
+    "code": 6
+   },
+   {
+    "description": "The modelled function `importlib.util.module_from_spec` is an imported function, please model `_frozen_importlib.module_from_spec` directly.",
+    "line": 13,
+    "column": 0,
+    "stop_line": 13,
+    "stop_column": 73,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/rce_sink.pysa",
+    "code": 3
+   },
+   {
+    "description": "`libs.community.langchain_community.graphs.neo4j_graph.Neo4jGraph.query` is not part of the environment, no module `libs` in search path.",
+    "line": 57,
+    "column": 0,
+    "stop_line": 57,
+    "stop_column": 116,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/sqlite3_sinks.pysa",
+    "code": 6
+   },
+   {
+    "description": "Module `langchain` does not define `langchain.sql_database.SQLDatabase.run`.",
+    "line": 55,
+    "column": 0,
+    "stop_line": 55,
+    "stop_column": 84,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/sqlite3_sinks.pysa",
+    "code": 28
+   },
+   {
+    "description": "`src.vanna.base.base.VannaBase.run_sql` is not part of the environment, no module `src` in search path.",
+    "line": 51,
+    "column": 0,
+    "stop_line": 51,
+    "stop_column": 83,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/sqlite3_sinks.pysa",
+    "code": 6
+   },
+   {
+    "description": "`llama_indexs.VectorStoreIndex.from_documents.as_chat_engine.query` is not part of the environment, no module `llama_indexs` in search path.",
+    "line": 440,
+    "column": 0,
+    "stop_line": 444,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 6
+   },
+   {
+    "description": "Module `langchain` does not define `langchain.chains.base.Chain.invoke`.",
+    "line": 285,
+    "column": 0,
+    "stop_line": 290,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 28
+   },
+   {
+    "description": "Module `langchain` does not define `langchain.llms.openai.OpenAIChat._generate`.",
+    "line": 279,
+    "column": 0,
+    "stop_line": 283,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 28
+   },
+   {
+    "description": "Module `google` does not define `google.genai.GenerativeModel.generate_content_async`.",
+    "line": 259,
+    "column": 0,
+    "stop_line": 262,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 28
+   },
+   {
+    "description": "Module `google` does not define `google.genai.GenerativeModel.generate_content`.",
+    "line": 254,
+    "column": 0,
+    "stop_line": 257,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 28
+   },
+   {
+    "description": "Module `cohere` does not define `cohere.Client.chat_stream`.",
+    "line": 249,
+    "column": 0,
+    "stop_line": 252,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 28
+   },
+   {
+    "description": "`cerebras.cloud.sdk.AsyncCerebras.chat.completions.create` is not part of the environment, no module `cerebras` in search path.",
+    "line": 244,
+    "column": 0,
+    "stop_line": 247,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 6
+   },
+   {
+    "description": "`cerebras.cloud.sdk.Cerebras.chat.completions.create` is not part of the environment, no module `cerebras` in search path.",
+    "line": 239,
+    "column": 0,
+    "stop_line": 242,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 6
+   },
+   {
+    "description": "`dashscope.Generation.call` is not part of the environment, no module `dashscope` in search path.",
+    "line": 234,
+    "column": 0,
+    "stop_line": 237,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 6
+   },
+   {
+    "description": "`dashscope.AsyncGeneration.call` is not part of the environment, no module `dashscope` in search path.",
+    "line": 229,
+    "column": 0,
+    "stop_line": 232,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 6
+   },
+   {
+    "description": "`replicate.async_run` is not part of the environment, no module `replicate` in search path.",
+    "line": 224,
+    "column": 0,
+    "stop_line": 227,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 6
+   },
+   {
+    "description": "`replicate.run` is not part of the environment, no module `replicate` in search path.",
+    "line": 219,
+    "column": 0,
+    "stop_line": 222,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 6
+   },
+   {
+    "description": "`fireworks.LLM.chat.completions.acreate` is not part of the environment, no module `fireworks` in search path.",
+    "line": 214,
+    "column": 0,
+    "stop_line": 217,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 6
+   },
+   {
+    "description": "`fireworks.client.Completion.create` is not part of the environment, no module `fireworks` in search path.",
+    "line": 209,
+    "column": 0,
+    "stop_line": 212,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 6
+   },
+   {
+    "description": "`fireworks.LLM.chat.completions.create` is not part of the environment, no module `fireworks` in search path.",
+    "line": 204,
+    "column": 0,
+    "stop_line": 207,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 6
+   },
+   {
+    "description": "`fireworks.client.ChatCompletion.create` is not part of the environment, no module `fireworks` in search path.",
+    "line": 199,
+    "column": 0,
+    "stop_line": 202,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 6
+   },
+   {
+    "description": "`together.AsyncTogether.async_completions.create` is not part of the environment, no module `together` in search path.",
+    "line": 194,
+    "column": 0,
+    "stop_line": 197,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 6
+   },
+   {
+    "description": "`together.Together.completions.create` is not part of the environment, no module `together` in search path.",
+    "line": 189,
+    "column": 0,
+    "stop_line": 192,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 6
+   },
+   {
+    "description": "`azure.cognitiveservices.language.conversations.ConversationAPI.conversations.generate_message` is not part of the environment, no module `azure` in search path.",
+    "line": 184,
+    "column": 0,
+    "stop_line": 187,
+    "stop_column": 36,
+    "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/TaintP2X/Taint_Propagation/taint/llms_sources.pysa",
+    "code": 6
+   }
+  ]
+ },
+ "codes": {
+  "6015": "User controlled url",
+  "6014": "User controlled response headers",
+  "6013": "User Controlled file returned to user",
+  "6012": "User controlled string formatting",
+  "6010": "User data to filesystem operation (read/write)",
+  "6009": "XSS",
+  "6008": "SQL injection.",
+  "6007": "User controlled data to email send to users",
+  "6006": "Possible ExecEnvSink:",
+  "6005": "Possible ExecArgSink:",
+  "6004": "Possible FileContentDeserializationSink:",
+  "6003": "Possible ExecDeserializationSink:",
+  "6002": "Possible ExecImportSink:",
+  "6001": "Possible RemoteCodeExecution:",
+  "5015": "User controlled url",
+  "5014": "User controlled response headers",
+  "5013": "User Controlled file returned to user",
+  "5012": "User controlled string formatting",
+  "5010": "User data to filesystem operation (read/write)",
+  "5009": "XSS",
+  "5008": "SQL injection.",
+  "5007": "User controlled data to email send to users",
+  "5006": "Possible ExecEnvSink:",
+  "5005": "Possible ExecArgSink:",
+  "5004": "Possible FileContentDeserializationSink:",
+  "5003": "Possible ExecDeserializationSink:",
+  "5002": "Possible ExecImportSink:",
+  "5001": "Possible RemoteCodeExecution:"
+ },
+ "cache": {
+  "shared_memory_status": "Disabled",
+  "save_cache": false
+ }
+}

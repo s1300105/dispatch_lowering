@@ -1,0 +1,179 @@
+{
+  "walls": [
+    {
+      "id": "W0",
+      "file": "agent.py",
+      "line": 277,
+      "end_line": 277,
+      "idiom": "higher_order(hint)",
+      "callee": "command",
+      "stmt_line": 277,
+      "stmt_end_line": 277,
+      "stmt_kind": "Assign",
+      "chain_line": 0,
+      "registry": null,
+      "members": null,
+      "assign_target": "result",
+      "is_method_wall": false,
+      "in_async": true,
+      "taint_args": [
+        "tool_call",
+        "command",
+        "result"
+      ],
+      "status": "resolved",
+      "reason": ""
+    }
+  ],
+  "links": [
+    {
+      "id": "L0",
+      "wall_id": "W0",
+      "file": "agent.py",
+      "line": 277,
+      "target": {
+        "cls": "CodeExecutorComponent",
+        "name": "execute_python_code",
+        "params": [
+          "code"
+        ],
+        "kwonly": [],
+        "has_varargs": false,
+        "has_kwargs": false,
+        "module": "forge.components.code_executor.code_executor",
+        "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/dispatch-taint/taintp2x_m2_verification/cond_A/src/forge/components/code_executor/code_executor.py",
+        "lineno": 131,
+        "is_async": true,
+        "decorated": true,
+        "origin": "decorator",
+        "match_level": 2,
+        "forward": []
+      },
+      "match_level": 2,
+      "status": "lowered",
+      "reason": "",
+      "taint_args": [
+        "code=tool_call.arguments"
+      ],
+      "redirector": "",
+      "lowered_line": 280
+    },
+    {
+      "id": "L1",
+      "wall_id": "W0",
+      "file": "agent.py",
+      "line": 277,
+      "target": {
+        "cls": "CodeExecutorComponent",
+        "name": "execute_python_file",
+        "params": [
+          "filename",
+          "args"
+        ],
+        "kwonly": [],
+        "has_varargs": false,
+        "has_kwargs": false,
+        "module": "forge.components.code_executor.code_executor",
+        "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/dispatch-taint/taintp2x_m2_verification/cond_A/src/forge/components/code_executor/code_executor.py",
+        "lineno": 179,
+        "is_async": false,
+        "decorated": true,
+        "origin": "decorator",
+        "match_level": 2,
+        "forward": []
+      },
+      "match_level": 2,
+      "status": "lowered",
+      "reason": "",
+      "taint_args": [
+        "filename=tool_call.arguments",
+        "args=tool_call.arguments"
+      ],
+      "redirector": "",
+      "lowered_line": 283
+    },
+    {
+      "id": "L2",
+      "wall_id": "W0",
+      "file": "agent.py",
+      "line": 277,
+      "target": {
+        "cls": "CodeExecutorComponent",
+        "name": "execute_shell",
+        "params": [
+          "command_line"
+        ],
+        "kwonly": [],
+        "has_varargs": false,
+        "has_kwargs": false,
+        "module": "forge.components.code_executor.code_executor",
+        "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/dispatch-taint/taintp2x_m2_verification/cond_A/src/forge/components/code_executor/code_executor.py",
+        "lineno": 261,
+        "is_async": false,
+        "decorated": true,
+        "origin": "decorator",
+        "match_level": 2,
+        "forward": []
+      },
+      "match_level": 2,
+      "status": "lowered",
+      "reason": "",
+      "taint_args": [
+        "command_line=tool_call.arguments"
+      ],
+      "redirector": "",
+      "lowered_line": 286
+    },
+    {
+      "id": "L3",
+      "wall_id": "W0",
+      "file": "agent.py",
+      "line": 277,
+      "target": {
+        "cls": "CodeExecutorComponent",
+        "name": "execute_shell_popen",
+        "params": [
+          "command_line"
+        ],
+        "kwonly": [],
+        "has_varargs": false,
+        "has_kwargs": false,
+        "module": "forge.components.code_executor.code_executor",
+        "path": "/home/yudai/Project/research/Master_Project/dispatch-taint-system/dispatch-taint/taintp2x_m2_verification/cond_A/src/forge/components/code_executor/code_executor.py",
+        "lineno": 307,
+        "is_async": false,
+        "decorated": true,
+        "origin": "decorator",
+        "match_level": 2,
+        "forward": []
+      },
+      "match_level": 2,
+      "status": "lowered",
+      "reason": "",
+      "taint_args": [
+        "command_line=tool_call.arguments"
+      ],
+      "redirector": "",
+      "lowered_line": 289
+    }
+  ],
+  "stats": {
+    "files": 1,
+    "walls_detected": 1,
+    "walls_by_idiom": {
+      "higher_order(hint)": 1
+    },
+    "walls_skipped_no_args": 0,
+    "candidates_total": 4,
+    "links_built": 4,
+    "links_lowered": 4,
+    "links_filtered_registry": 0,
+    "links_filtered_level": 0,
+    "links_unreasonable": 0,
+    "links_no_args": 0,
+    "links_phantom": 0,
+    "lines_added": 13,
+    "redirectors": 0,
+    "unresolved_refs": []
+  }
+}

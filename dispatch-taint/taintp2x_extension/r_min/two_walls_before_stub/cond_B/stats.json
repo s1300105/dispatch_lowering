@@ -1,0 +1,25 @@
+{
+  "files": 1,
+  "walls_detected": 1,
+  "walls_by_idiom": {
+    "subscript": 1
+  },
+  "walls_skipped_no_args": 0,
+  "walls_rejected": 0,
+  "walls_unmatched": 0,
+  "walls_by_engine_status": {},
+  "walls_by_origin": {
+    "ast": 1
+  },
+  "candidates_total": 2,
+  "links_built": 2,
+  "links_lowered": 2,
+  "links_filtered_registry": 0,
+  "links_filtered_level": 0,
+  "links_unreasonable": 0,
+  "links_no_args": 0,
+  "links_phantom": 0,
+  "lines_added": 6,
+  "redirectors": 0,
+  "unresolved_refs": []
+}

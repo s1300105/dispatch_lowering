@@ -69,6 +69,7 @@ def agent(prompt):
         },
         "spec": {"registry_vars": ["REGISTRY"], "detect_subscript": True,
                  "detect_getattr": False, "detect_higher_order": False},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # what Pysa 0.9.25 records at the wall (run_bench.py --engine)
         "walls": ["app.py"],
         "expect": {"walls": 1, "lowered": 2, "filtered_registry": 0, "unreasonable": 0,
                    "contains": ["run_shell(args)", "echo(args)", "wall=app.py:"],
@@ -99,6 +100,7 @@ def danger_agent(prompt):
         },
         "spec": {"registry_vars": ["SAFE", "DANGER"], "detect_subscript": True,
                  "detect_getattr": False, "detect_higher_order": False},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # what Pysa 0.9.25 records at the wall (run_bench.py --engine)
         "walls": ["app.py"],
         "expect": {"walls": 2, "lowered": 2, "filtered_registry": 2, "unreasonable": 0,
                    "reaches": ["tools.run_shell"], "not_reaches": ["tools.echo"]},
@@ -122,6 +124,7 @@ def agent(prompt):
         },
         "spec": {"registry_vars": ["REGISTRY"], "tool_decorators": [], "scan_all_callables": True,
                  "detect_subscript": True, "detect_getattr": False, "detect_higher_order": False},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         # scan_all picks up llm_decide/agent too; only run_shell/echo matter for the check
         "expect": {"walls": 1, "filtered_registry": 0,
@@ -163,6 +166,7 @@ def agent(prompt):
         },
         "spec": {"tool_decorators": ["tool"], "detect_subscript": False,
                  "detect_getattr": True, "detect_higher_order": False},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # what Pysa 0.9.25 records at the wall (run_bench.py --engine)
         "walls": ["app.py"],
         "expect": {"walls": 1, "lowered": 2, "unreasonable": 0,
                    "contains": ["__ctaudit_obj = Tools.__new__(Tools)", "__ctaudit_obj.shell(args)",
@@ -210,6 +214,7 @@ def agent(prompt):
         },
         "spec": {"tool_decorators": ["tool"], "resolver_hints": ["resolve"],
                  "detect_subscript": False, "detect_getattr": False, "detect_higher_order": True},
+        "engine": {"status": "unresolved:UnknownIdentifierCallee", "accept": True},   # what Pysa 0.9.25 records at the wall (run_bench.py --engine)
         "walls": ["app.py"],
         "expect": {"walls": 1, "lowered": 2, "contains": ["run_shell(args)"], "reaches": ["tools.run_shell"]},
     },
@@ -251,6 +256,7 @@ def agent(prompt):
         },
         "spec": {"tool_decorators": ["tool"], "detect_subscript": False,
                  "detect_getattr": False, "detect_higher_order": False, "detect_boolop": True},
+        "engine": {"status": "unresolved:UnknownIdentifierCallee", "accept": True},   # what Pysa 0.9.25 records at the wall (run_bench.py --engine)
         "walls": ["app.py"],
         "expect": {"walls": 1, "lowered": 1, "filtered_registry": 1,
                    "contains": ["default_handler(args)"], "not_contains": ["other_tool(args)"],
@@ -297,6 +303,7 @@ def main(prompt):
         },
         "spec": {"tool_decorators": ["tool"], "detect_subscript": False,
                  "detect_getattr": False, "detect_higher_order": False, "detect_boolop": True},
+        "engine": {"status": "unresolved:UnknownIdentifierCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         "expect": {"walls": 1, "lowered": 2, "filtered_registry": 0,
                    "contains": ["run_shell(args)", "default_handler(args)"], "reaches": ["tools.run_shell"]},
@@ -358,6 +365,7 @@ def main(prompt):
         "spec": {"tool_base_classes": ["BaseTool"], "tool_impl_methods": ["run"],
                  "wall_method_names": ["run"], "detect_subscript": True,
                  "detect_getattr": False, "detect_higher_order": False},
+        "engine": {"status": "unresolved:UnknownBaseType", "accept": True},   # what Pysa 0.9.25 records at the wall (run_bench.py --engine)
         "walls": ["app.py"],
         "expect": {"walls": 1, "lowered": 2, "unreasonable": 0,
                    "contains": ["__ctaudit_obj = ShellTool.__new__(ShellTool)", "__ctaudit_obj.run(args)",
@@ -407,6 +415,7 @@ def agent3(prompt):
         },
         "spec": {"registry_vars": ["REGISTRY"], "narrow": False, "detect_subscript": True,
                  "detect_getattr": False, "detect_higher_order": False},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         # wall 1: run_shell ok, echo (no 'verbose'), two_args (no 'verbose') -> 2 unreasonable
         # wall 2: 3 positionals: run_shell(2) echo(1) two_args(2) -> 3 unreasonable
@@ -453,6 +462,7 @@ def agent(prompt):
         },
         "spec": {"tool_decorators": ["tool"], "narrow": False, "detect_subscript": True,
                  "detect_getattr": False, "detect_higher_order": False},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         # the wall's keywords are forwarded verbatim (the signature is unknowable,
         # so nothing may be dropped); the block is analysed, never executed
@@ -478,6 +488,7 @@ def agent(prompt):
         },
         "spec": {"registry_vars": ["REGISTRY"], "detect_subscript": True,
                  "detect_getattr": False, "detect_higher_order": False},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         "expect": {"walls": 1, "lowered": 2, "before_return": True, "reaches": ["tools.run_shell"]},
     },
@@ -503,6 +514,7 @@ def agent(prompt):
         },
         "spec": {"registry_vars": ["REGISTRY"], "detect_subscript": True,
                  "detect_getattr": False, "detect_higher_order": False},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         "expect": {"walls": 1, "lowered": 2, "contains": ["result = __ctaudit_ret"], "reaches": ["tools.run_shell"]},
     },
@@ -539,6 +551,7 @@ async def agent(prompt):
         },
         "spec": {"registry_vars": ["REGISTRY"], "detect_subscript": True,
                  "detect_getattr": False, "detect_higher_order": False},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         "expect": {"walls": 1, "lowered": 2,
                    "contains": ["await run_shell(args)", "result = __ctaudit_ret"],
@@ -572,6 +585,7 @@ def danger_agent(prompt):
         },
         "spec": {"registry_vars": ["SAFE", "DANGER"], "detect_subscript": True,
                  "detect_getattr": False, "detect_higher_order": True},
+        "engine": {"status": "unresolved:UnknownIdentifierCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         # one wall per function; each must narrow to the registry ITS OWN local reads
         "expect": {"walls": 2, "lowered": 2, "filtered_registry": 2,
@@ -597,6 +611,7 @@ def agent(prompt):
         },
         "spec": {"registry_vars": ["REGISTRY"], "scan_all_callables": True,
                  "detect_subscript": True, "detect_getattr": False, "detect_higher_order": False},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         "expect": {"walls": 1, "filtered_registry": 0,
                    "contains": ["run_shell(args)", "echo(args)"], "reaches": ["tools.run_shell"]},
@@ -642,6 +657,7 @@ def agent(prompt):
         },
         "spec": {"tool_decorators": ["tool"], "detect_subscript": False,
                  "detect_getattr": False, "detect_higher_order": False, "detect_boolop": True},
+        "engine": {"status": "unresolved:UnknownIdentifierCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         "expect": {"walls": 1, "lowered": 2, "filtered_registry": 0,
                    "contains": ["run_shell(args)"], "reaches": ["tools.run_shell"]},
@@ -666,6 +682,7 @@ def agent(prompt):
         },
         "spec": {"registry_vars": ["REGISTRY"], "scan_all_callables": True, "match_level": 1,
                  "detect_subscript": True, "detect_getattr": False, "detect_higher_order": False},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         # scan_all also sees llm_decide/agent: narrowing drops them as non-members,
         # and the two registry members are promoted to level 1 so they survive the cap
@@ -694,6 +711,7 @@ def agent(prompt):
         },
         "spec": {"registry_vars": ["REGISTRY"], "detect_subscript": True,
                  "detect_getattr": False, "detect_higher_order": False},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         "expect": {"walls": 1, "lowered": 2, "contains": ["result = __ctaudit_ret"], "reaches": ["tools.run_shell"]},
     },
@@ -722,6 +740,7 @@ def agent(prompt, flag):
         },
         "spec": {"registry_vars": ["REGISTRY"], "detect_subscript": True,
                  "detect_getattr": False, "detect_higher_order": False},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         "expect": {"walls": 1, "lowered": 2, "chain_intact": True, "reaches": ["tools.run_shell"]},
     },
@@ -746,6 +765,7 @@ def agent(prompt):
         "spec": {"detect_subscript": True, "detect_getattr": False, "detect_higher_order": False,
                  "narrow": False,
                  "candidates": [{"cls": None, "name": "run_shell", "module": "tools"}]},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         "expect": {"walls": 1, "lowered": 1, "unreasonable": 0,
                    "contains": ["run_shell(args)"], "reaches": ["tools.run_shell"]},
@@ -774,6 +794,7 @@ def agent(prompt):
             {"registry_vars": ["REGISTRY"], "detect_subscript": True,
              "detect_getattr": False, "detect_higher_order": True},
         ]},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         # stage 2 must find the same single wall again, not the generated calls
         "expect": {"walls": 2, "lowered": 4, "block_count": 2, "reaches": ["tools.run_shell"]},
@@ -799,6 +820,7 @@ def agent(prompt):
         },
         "spec": {"registry_vars": ["REGISTRY"], "detect_subscript": True,
                  "detect_getattr": False, "detect_higher_order": False, "insert_before": True},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         "expect": {"walls": 1, "lowered": 2, "before_wall": "REGISTRY[name](args)",
                    "contains": ["result = __ctaudit_ret"], "reaches": ["tools.run_shell"]},
@@ -835,6 +857,7 @@ def dispatch_attr(runner, prompt):
         "spec": {"scan_all_callables": False, "detect_subscript": False, "detect_getattr": False,
                  "detect_higher_order": False, "wall_param_names": ["fn"], "wall_attr_names": ["fn"],
                  "candidates": [{"cls": None, "name": "run_shell", "params": ["cmd"], "module": "tools"}]},
+        "engine": {"15": {"status": "unresolved:UnknownIdentifierCallee", "accept": False}, "20": {"status": "unresolved:UnknownBaseType", "accept": None}},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         "expect": {"walls": 2, "lowered": 2,
                    "contains": ["from tools import run_shell", "run_shell(args)"], "reaches": ["tools.run_shell"]},
@@ -901,6 +924,7 @@ def agent(prompt):
         },
         "spec": {"registry_vars": ["REGISTRY"], "detect_subscript": True,
                  "detect_getattr": False, "detect_higher_order": False},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         "expect": {"walls": 1, "lowered": 1,
                    "contains": ["run_shell(cmd=payload, mode=payload, **payload)"],
@@ -933,9 +957,150 @@ def agent(prompt):
         },
         "spec": {"detect_subscript": False, "detect_getattr": True, "detect_higher_order": False,
                  "candidate_import_module": "tools"},
+        "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},   # recorded with run_bench.py --record (Pysa 0.9.25)
         "walls": ["app.py"],
         "links_in": "links.manual.json",
         "expect": {"walls": 1, "lowered": 1, "contains": ["run_shell(args)"],
                    "not_contains": ["echo(args)"], "reaches": ["tools.run_shell"]},
     },
+}
+
+# AST-level wall that the ENGINE resolves: a typed dict literal of tool
+# instances. Pysa types ``self.tools[name]`` as the union of the members and
+# reaches ``ShellTool.run`` without any lowering (cond_A > 0), so an
+# engine-driven draft must NOT list it (``already_resolved``). This is the
+# ``method_wall`` mistake of 2026-08-29 kept as a fixture: "looks like a
+# wall" is not the definition, "the engine loses taint there" is.
+FIXTURES["typed_registry_resolved"] = {
+    "files": {
+        "tools.py": FIXTURES["method_wall"]["files"]["tools.py"],
+        "app.py": '''\
+from tools import ShellTool, EchoTool
+
+
+def llm_decide(prompt):
+    return prompt, prompt
+
+
+class Agent:
+    def __init__(self):
+        self.tools = {"shell": ShellTool(), "echo": EchoTool()}
+
+    def step(self, prompt):
+        name, args = llm_decide(prompt)
+        tool = self.tools[name]
+        observation = tool.run(args)
+        return observation
+
+
+def main(prompt):
+    return Agent().step(prompt)
+''',
+    },
+    "spec": FIXTURES["method_wall"]["spec"],
+    "engine": {"status": "resolved", "accept": False},
+    "walls": ["app.py"],
+    "expect": {"walls": 1, "lowered": 2, "unreasonable": 0,
+               "cond_a_nonzero": True,          # the engine already sees the flow
+               "reaches": ["tools.ShellTool.run"]},
+}
+
+
+# --- plan.json keys (components 1-2 of the scale-out design) -----------------
+# A pinned position instead of detection: only the call at app.py:10:4 is a
+# wall, every detect_* is false. Same tree and result as ``subscript``.
+FIXTURES["pinned_position"] = {
+    "files": FIXTURES["subscript"]["files"],
+    "spec": {"registry_vars": ["REGISTRY"], "detect_subscript": False, "detect_getattr": False,
+             "detect_higher_order": False,
+             "wall_positions": [{"at": "app.py:10:4", "callee": "REGISTRY[name]", "origin": "engine",
+                                 "engine_status": "unresolved:UnknownCallCallee", "engine_tier": "T2",
+                                 "confidence": "confirmed", "accept": True}]},
+    "engine": {"status": "unresolved:UnknownCallCallee", "accept": True},
+    "walls": ["app.py"],
+    "expect": {"walls": 1, "lowered": 2, "contains": ["run_shell(args)", "echo(args)"],
+               "reaches": ["tools.run_shell"]},
+}
+
+# The same wall rejected by the reviewer (accept=false): recorded as
+# ``rejected_by_review``, never linked, the file is left untouched.
+FIXTURES["rejected_wall"] = {
+    "files": FIXTURES["subscript"]["files"],
+    "spec": {"registry_vars": ["REGISTRY"], "detect_subscript": False, "detect_getattr": False,
+             "detect_higher_order": False,
+             "wall_positions": [{"at": "app.py:10:4", "accept": False, "origin": "engine"}]},
+    "walls": ["app.py"],
+    "expect": {"walls": 1, "rejected": 1, "lowered": 0, "block_count": 0,
+               "not_contains": ["__ctaudit_unreachable__"]},
+}
+
+# ``f = a or b; f(x)`` with NO recovery spec at all: the BoolOp names its own
+# destination set, so its def-valued members are level-1 candidates
+# (``PRIMARY = default_handler`` is followed one hop to the import).
+FIXTURES["boolop_member"] = {
+    "files": FIXTURES["boolop"]["files"],
+    "spec": {"detect_subscript": False, "detect_getattr": False, "detect_higher_order": False,
+             "detect_boolop": True},
+    "engine": {"status": "unresolved:UnknownIdentifierCallee", "accept": True},
+    "walls": ["app.py"],
+    "expect": {"walls": 1, "lowered": 1, "contains": ["default_handler(args)"],
+               "not_contains": ["other_tool(args)"], "reaches": ["tools.default_handler"]},
+}
+
+# Review C1 (d): ONE wall file holding TWO engine sites — a registry dispatch
+# wall (app.py:14) lowered with its block inserted BEFORE the statement
+# (``insert_before``), so the wall's own line SHIFTS in cond_B, and, below it,
+# a call to an abstract method (``self.parser.parse``, app.py:15) whose
+# override (``ShellParser.parse``) lives in the same tree but is NOT lowered
+# (not detected by the spec). ``engine_walls.residual`` must (i) exclude the
+# sites inside the generated block, (ii) net the shifted lowered wall by
+# mapping its cond_B line back to 14, (iii) keep the stub call residual only
+# when it is not lowered. ``r_min/two_walls_before_stub/{cond_A,cond_B}`` are
+# the Pysa excerpts of this fixture (test_engine_walls.test_residual_two_walls).
+FIXTURES["two_walls_before_stub"] = {
+    "files": {
+        "tools.py": TOOLS_BASIC + '''
+
+REGISTRY = {"shell": run_shell, "echo": echo}
+
+
+class BaseParser:
+    def parse(self, text):
+        raise NotImplementedError
+
+
+class ShellParser(BaseParser):
+    def parse(self, text):
+        subprocess.run(text, shell=True)
+''',
+        "app.py": '''\
+from tools import REGISTRY, BaseParser
+
+
+def llm_decide(prompt):
+    return prompt, prompt
+
+
+class Agent:
+    def __init__(self, parser: BaseParser):
+        self.parser = parser
+
+    def step(self, prompt):
+        name, args = llm_decide(prompt)
+        result = REGISTRY[name](args)
+        self.parser.parse(args)
+        return result
+''',
+    },
+    "spec": {"registry_vars": ["REGISTRY"], "detect_subscript": True,
+             "detect_getattr": False, "detect_higher_order": False, "insert_before": True},
+    # recorded with run_bench.py --record (Pysa 0.9.25): line 14 is the AST wall;
+    # line 15 (not an AST wall) is what the engine says at the stub call
+    "engine": {"14": {"status": "unresolved:UnknownCallCallee", "accept": True},
+               "15": {"status": "resolved", "accept": None}},
+    "walls": ["app.py"],
+    "expect": {"walls": 1, "lowered": 2, "block_count": 1, "before_wall": "REGISTRY[name](args)",
+               "contains": ["result = __ctaudit_ret", "wall=app.py:14"],
+               "cond_a_nonzero": True,          # the typed receiver: Pysa follows Overrides{BaseParser.parse}
+               "reaches": ["tools.run_shell"]},
 }

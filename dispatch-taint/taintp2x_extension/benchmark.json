@@ -1,0 +1,404 @@
+{
+  "_note": "23 TaintP2X targets + 3 derived rows (derived: true, derived_from: the TaintP2X target they come from — the committed AutoGPT M2 subset and two import-closure subsets; aggregate reports them in a separate table). fetch: git tag / pypi sdist / local path; pkg_root: dirs copied under src/ (flatten=true copies a dir's children as top-level packages); pysa_models: MANUAL target-specific .pysa; dataset_dir: TaintP2X's own pysa-runs of the WHOLE repository (count-only pre-check + reference issue count; null for derived rows — the count is on the parent row). Categories follow the dataset's base_server/<CAT> folders where known.",
+  "defaults": {
+    "pyre_timeout": 1200,
+    "search_venv": 1,
+    "emit": "inline"
+  },
+  "targets": [
+    {
+      "name": "AutoGPT-autogpt-platform-beta-v0.5.0",
+      "category": "RCE",
+      "fetch": {
+        "git": "https://github.com/Significant-Gravitas/AutoGPT.git",
+        "ref": "autogpt-platform-beta-v0.5.0"
+      },
+      "pkg_root": [
+        "classic/forge/forge",
+        "classic/original_autogpt/autogpt"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/AutoGPT-autogpt-platform-beta-v0.5.0/pysa-runs",
+      "preset": "autogpt",
+      "pysa_models": "",
+      "notes": "classic agent (forge + autogpt packages); the platform backend is a separate tree"
+    },
+    {
+      "name": "AutoGPT-classic-subset",
+      "category": "RCE",
+      "derived": true,
+      "derived_from": "AutoGPT-autogpt-platform-beta-v0.5.0",
+      "fetch": {
+        "path": "dispatch-taint/taintp2x_m2_verification/cond_A/src"
+      },
+      "pkg_root": [
+        "forge"
+      ],
+      "extra_files": [
+        "agent.py"
+      ],
+      "dataset_dir": null,
+      "preset": "autogpt",
+      "pysa_models": "dispatch-taint/taintp2x_m2_verification/cond_A/source/autogpt_v05.pysa",
+      "search_venv": 0,
+      "notes": "the committed M2 subset (agent.py + forge code_executor) with its manual source model: the regression target (0->7, 5 sink pairs)"
+    },
+    {
+      "name": "devika",
+      "category": "RCE",
+      "fetch": {
+        "git": "https://github.com/stitionai/devika.git"
+      },
+      "pkg_root": [
+        "src"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/devika/pysa-runs_devika",
+      "preset": "",
+      "pysa_models": ""
+    },
+    {
+      "name": "langchain-0.0.131",
+      "category": "RCE",
+      "fetch": {
+        "pypi": "langchain",
+        "version": "0.0.131"
+      },
+      "pkg_root": [
+        "langchain"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/langchain-0.0.131/pysa-runs5",
+      "preset": "langchain",
+      "pysa_models": ""
+    },
+    {
+      "name": "langchain-0.0.194",
+      "category": "RCE",
+      "fetch": {
+        "pypi": "langchain",
+        "version": "0.0.194"
+      },
+      "pkg_root": [
+        "langchain"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/langchain-0.0.194/pysa-runs3",
+      "preset": "langchain",
+      "pysa_models": ""
+    },
+    {
+      "name": "langchain-0.0.232",
+      "category": "",
+      "fetch": {
+        "pypi": "langchain",
+        "version": "0.0.232"
+      },
+      "pkg_root": [
+        "langchain"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/langchain-0.0.232/pysa-runs_langchain-0.0.232",
+      "preset": "langchain",
+      "pysa_models": ""
+    },
+    {
+      "name": "langchain-0.0.327",
+      "category": "SSRF",
+      "fetch": {
+        "pypi": "langchain",
+        "version": "0.0.327"
+      },
+      "pkg_root": [
+        "langchain"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/langchain-0.0.327/pysa-runs5",
+      "preset": "langchain",
+      "pysa_models": ""
+    },
+    {
+      "name": "langchain-langchain-0.2.5",
+      "category": "SQL",
+      "fetch": {
+        "pypi": "langchain",
+        "version": "0.2.5"
+      },
+      "pkg_root": [
+        "langchain"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/langchain-langchain-0.2.5/pysa-runs3",
+      "preset": "langchain",
+      "pysa_models": ""
+    },
+    {
+      "name": "langchain-langchain-experimental-0.0.61",
+      "category": "RCE",
+      "fetch": {
+        "pypi": "langchain-experimental",
+        "version": "0.0.61"
+      },
+      "pkg_root": [
+        "langchain_experimental"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/langchain-langchain-experimental-0.0.61/pysa-runs",
+      "preset": "langchain",
+      "pysa_models": ""
+    },
+    {
+      "name": "litellm-1.40.12",
+      "category": "RCE",
+      "fetch": {
+        "git": "https://github.com/BerriAI/litellm.git",
+        "ref": "v1.40.12"
+      },
+      "pkg_root": [
+        "litellm"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/litellm-1.40.12/pysa-runs",
+      "preset": "",
+      "pysa_models": "",
+      "notes": "pypi sdist of 1.40.12 is not downloadable (no sdist / build isolation); git tag instead"
+    },
+    {
+      "name": "llama_index-0.7.13",
+      "category": "RCE",
+      "fetch": {
+        "pypi": "llama-index",
+        "version": "0.7.13"
+      },
+      "pkg_root": [
+        "llama_index"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/llama_index-0.7.13/pysa-runs_2",
+      "preset": "llama_index",
+      "pysa_models": ""
+    },
+    {
+      "name": "llama_index-0.9.28.post2",
+      "category": "SQL",
+      "fetch": {
+        "pypi": "llama-index",
+        "version": "0.9.28.post2"
+      },
+      "pkg_root": [
+        "llama_index"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/llama_index-0.9.28.post2/pysa-runs4",
+      "preset": "llama_index",
+      "pysa_models": ""
+    },
+    {
+      "name": "llama_index-0.10.25",
+      "category": "",
+      "fetch": {
+        "pypi": "llama-index-core",
+        "version": "0.10.25"
+      },
+      "pkg_root": [
+        "llama_index"
+      ],
+      "dataset_dir": "",
+      "preset": "llama_index",
+      "pysa_models": "",
+      "notes": "dataset run dir (pysa-runs8) is empty: no reference issue count; llama-index-core is the code package"
+    },
+    {
+      "name": "llama_index-0.11.23",
+      "category": "SQL",
+      "fetch": {
+        "git": "https://github.com/run-llama/llama_index.git",
+        "ref": "v0.11.23"
+      },
+      "pkg_root": [
+        "llama-index-core/llama_index"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/llama_index-0.11.23/pysa-runs",
+      "preset": "llama_index",
+      "pysa_models": "",
+      "notes": "core only; the dataset also analysed integrations/legacy"
+    },
+    {
+      "name": "MetaGPT-0.6.3",
+      "category": "RCE",
+      "fetch": {
+        "git": "https://github.com/geekan/MetaGPT.git",
+        "ref": "v0.6.3"
+      },
+      "pkg_root": [
+        "metagpt"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/MetaGPT-0.6.3/pysa-runs9",
+      "preset": "",
+      "pysa_models": ""
+    },
+    {
+      "name": "OpenManus",
+      "category": "RCE",
+      "fetch": {
+        "git": "https://github.com/FoundationAgents/OpenManus.git"
+      },
+      "pkg_root": [
+        "app"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/OpenManus/pysa-runs2",
+      "preset": "openmanus",
+      "pysa_models": "dispatch-taint/taintp2x_extension/benchmark_models/openmanus.pysa"
+    },
+    {
+      "name": "pandas-ai-0.8.0",
+      "category": "",
+      "fetch": {
+        "pypi": "pandasai",
+        "version": "0.8.0"
+      },
+      "pkg_root": [
+        "pandasai"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/pandas-ai-0.8.0/pysa_result",
+      "preset": "",
+      "pysa_models": ""
+    },
+    {
+      "name": "pandas-ai-0.8.1",
+      "category": "",
+      "fetch": {
+        "pypi": "pandasai",
+        "version": "0.8.1"
+      },
+      "pkg_root": [
+        "pandasai"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/pandas-ai-0.8.1/pysa_result",
+      "preset": "",
+      "pysa_models": ""
+    },
+    {
+      "name": "pysa-runs_SuperAGI-0.0.14",
+      "category": "RCE",
+      "fetch": {
+        "git": "https://github.com/TransformerOptimus/SuperAGI.git",
+        "ref": "v0.0.14"
+      },
+      "pkg_root": [
+        "superagi"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/pysa-runs_SuperAGI-0.0.14",
+      "preset": "",
+      "pysa_models": ""
+    },
+    {
+      "name": "quivr-0.0.236",
+      "category": "",
+      "fetch": {
+        "git": "https://github.com/QuivrHQ/quivr.git",
+        "ref": "v0.0.236"
+      },
+      "pkg_root": [
+        "backend"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/quivr-0.0.236/pysa-runs_quivr",
+      "preset": "",
+      "pysa_models": "",
+      "flatten": true,
+      "pyre_timeout": 3000
+    },
+    {
+      "name": "vanna-0.3.1",
+      "category": "RCE",
+      "fetch": {
+        "pypi": "vanna",
+        "version": "0.3.1"
+      },
+      "pkg_root": [
+        "src/vanna"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/vanna-0.3.1/pysa-runs",
+      "preset": "vanna",
+      "pysa_models": "dispatch-taint/taintp2x_extension/benchmark_models/vanna.pysa"
+    },
+    {
+      "name": "vanna-0.3.3",
+      "category": "",
+      "fetch": {
+        "pypi": "vanna",
+        "version": "0.3.3"
+      },
+      "pkg_root": [
+        "src/vanna"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/vanna-0.3.3/pysa_result",
+      "preset": "vanna",
+      "pysa_models": "dispatch-taint/taintp2x_extension/benchmark_models/vanna.pysa"
+    },
+    {
+      "name": "vanna-0.3.4",
+      "category": "SQL",
+      "fetch": {
+        "pypi": "vanna",
+        "version": "0.3.4"
+      },
+      "pkg_root": [
+        "src/vanna"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/vanna-0.3.4/pysa-runs10",
+      "preset": "vanna",
+      "pysa_models": "dispatch-taint/taintp2x_extension/benchmark_models/vanna.pysa"
+    },
+    {
+      "name": "vanna-0.6.2",
+      "category": "SQL",
+      "fetch": {
+        "pypi": "vanna",
+        "version": "0.6.2"
+      },
+      "pkg_root": [
+        "src/vanna"
+      ],
+      "dataset_dir": "TaintP2X/dataset/Benchmark/vanna-0.6.2/pysa-runs",
+      "preset": "vanna",
+      "pysa_models": "dispatch-taint/taintp2x_extension/benchmark_models/vanna.pysa"
+    },
+    {
+      "name": "langchain-0.0.327-agents-subset",
+      "category": "SSRF",
+      "derived": true,
+      "derived_from": "langchain-0.0.327",
+      "fetch": {
+        "path": "benchmark_out/langchain-0.0.327/fetch/langchain-0.0.327"
+      },
+      "pkg_root": [
+        "langchain"
+      ],
+      "subset": {
+        "pkg": "langchain",
+        "entries": [
+          "langchain/agents/agent.py",
+          "langchain/agents/agent_toolkits/__init__.py"
+        ]
+      },
+      "dataset_dir": null,
+      "preset": "langchain",
+      "pysa_models": "",
+      "search_venv": 0,
+      "notes": "the whole package times out at 1200 s: import closure of the agent executor from ['langchain/agents/agent.py', 'langchain/agents/agent_toolkits/__init__.py']"
+    },
+    {
+      "name": "langchain-langchain-0.2.5-agents-subset",
+      "category": "SQL",
+      "derived": true,
+      "derived_from": "langchain-langchain-0.2.5",
+      "fetch": {
+        "path": "benchmark_out/langchain-langchain-0.2.5/fetch/langchain-0.2.5"
+      },
+      "pkg_root": [
+        "langchain"
+      ],
+      "subset": {
+        "pkg": "langchain",
+        "entries": [
+          "langchain/agents/agent.py"
+        ]
+      },
+      "dataset_dir": null,
+      "preset": "langchain",
+      "pysa_models": "",
+      "search_venv": 0,
+      "notes": "the whole package times out at 1200 s: import closure of the agent executor from ['langchain/agents/agent.py']"
+    }
+  ]
+}

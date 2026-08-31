@@ -123,6 +123,25 @@ class LoweringSpec:
     emit: str = "inline"                         # "inline" | "redirector"
     candidate_module_root: str = ""              # root for deriving candidate dotted modules (default: package walk-up)
     candidates: Tuple[dict, ...] = ()            # explicit candidate records (skip recovery); see links.Candidate
+    # review-driven wall selection (plan.json / draft): when non-empty, ONLY the
+    # calls at these positions are walls and every detect_* flag is ignored.
+    # Each entry is {"at": "path:line[:col]", optional "callee", "end": "line:col",
+    # "accept": bool, "origin", "engine_status", "engine_reason", "engine_tier",
+    # "confidence"}; a bare string is shorthand for {"at": ...}.
+    wall_positions: Tuple[dict, ...] = ()
+    reject_walls: Tuple[str, ...] = ()           # "path:line[:col]" walls the reviewer rejected (kept as rejected_by_review)
+    wall_files: Tuple[str, ...] = ()             # files to instrument (pipeline --walls may be omitted)
+    exclude_paths: Tuple[str, ...] = ()          # path prefixes/substrings excluded from candidate recovery
+    # method-name compatibility for ``x.m(...)`` walls: a class-method candidate
+    # must be named ``m`` or one of the impl methods the framework's ``m``
+    # forwards to (catalogue rows: run -> _run). Pairs "m:impl1,impl2".
+    dispatch_impl_map: Tuple[str, ...] = ()
+    # where ``dispatch_impl_map`` came from (review M10 / K7): "spec" when the
+    # spec dict carried the key (a plan-derived spec always does, possibly
+    # empty — the catalogue rows of the detected frameworks are its whole
+    # vocabulary); "default" for a hand-written spec without the key, which
+    # falls back to DEFAULT_IMPL_MAP
+    impl_map_source: str = "default"
     _legacy: bool = False                        # internal: original detection/candidate rules
 
 
@@ -130,12 +149,80 @@ _NEW_KEYS = {
     "tool_decorators", "register_methods", "tool_list_names", "tool_wrappers", "tool_base_classes", "tool_impl_methods",
     "wrapper_func_kwargs", "registry_vars", "scan_all_callables", "candidate_import_module", "insert_before",
     "resolver_hints", "detect_subscript", "detect_getattr", "detect_higher_order", "detect_boolop",
-    "wall_method_names", "wall_param_names", "wall_attr_names",
+    "wall_method_names", "wall_param_names", "wall_attr_names", "wall_positions",
     "narrow", "filter_unreasonable", "match_level", "emit", "candidate_module_root", "candidates",
+    "reject_walls", "wall_files", "exclude_paths", "dispatch_impl_map", "impl_map_source",
 }
 # keys that configure precision/emission only — they do not switch a legacy
 # spec (AutoGPT @command) into general detection mode
-_META_KEYS = {"narrow", "filter_unreasonable", "match_level", "emit", "candidate_module_root", "candidates"}
+_META_KEYS = {"narrow", "filter_unreasonable", "match_level", "emit", "candidate_module_root", "candidates",
+              "reject_walls", "wall_files", "exclude_paths", "dispatch_impl_map", "impl_map_source"}
+
+# what a framework dispatch method forwards to, for a HAND-WRITTEN spec that
+# does not carry ``dispatch_impl_map`` (the bench fixtures). A plan-derived
+# spec never inherits these: draft.py writes the key explicitly from the
+# catalogue rows of the detected / preset frameworks, and an empty map means
+# "no framework row applies" (review M10 / K7).
+DEFAULT_IMPL_MAP = {"run": ("_run",), "arun": ("_arun",), "invoke": ("_run", "run"), "ainvoke": ("_arun", "arun"),
+                    "execute": ("execute", "_execute"), "call": ("call", "_fn", "__call__"), "acall": ("acall",)}
+
+
+def _coerce_impl_map(raw) -> Tuple[str, ...]:
+    if isinstance(raw, dict):
+        return tuple(f"{k}:{','.join(v if isinstance(v, (list, tuple)) else [v])}" for k, v in raw.items())
+    return tuple(raw or ())
+
+
+def impl_map_of(sp: "LoweringSpec") -> Dict[str, Tuple[str, ...]]:
+    """``m -> impl methods`` for the method-name compatibility check. The
+    spec's own pairs when the spec supplied the key (``impl_map_source ==
+    "spec"``, even an empty map); ``DEFAULT_IMPL_MAP`` only as the fallback
+    for a hand-written spec that has no such key (review M10)."""
+    out = {} if sp.impl_map_source == "spec" else {k: tuple(v) for k, v in DEFAULT_IMPL_MAP.items()}
+    for pair in sp.dispatch_impl_map:
+        if ":" in pair:
+            k, v = pair.split(":", 1)
+            out[k.strip()] = tuple(x.strip() for x in v.split(",") if x.strip())
+    return out
+
+
+def _parse_at(at: str):
+    """``path:line[:col]`` -> (path, line, col|None). The path may itself
+    contain ``:`` only on exotic systems; we split from the right."""
+    parts = str(at).rsplit(":", 2)
+    if len(parts) == 3 and parts[1].isdigit() and parts[2].isdigit():
+        return parts[0], int(parts[1]), int(parts[2])
+    parts = str(at).rsplit(":", 1)
+    if len(parts) == 2 and parts[1].isdigit():
+        return parts[0], int(parts[1]), None
+    raise ValueError(f"wall position {at!r} is not 'path:line[:col]'")
+
+
+def _coerce_positions(raw) -> Tuple[dict, ...]:
+    out = []
+    for e in raw or ():
+        if isinstance(e, str):
+            e = {"at": e}
+        e = dict(e)
+        if "at" not in e:
+            raise ValueError(f"wall_positions entry needs 'at': {e!r}")
+        path, line, col = _parse_at(e["at"])
+        e["_path"], e["_line"], e["_col"] = path, line, col
+        if e.get("end"):
+            el, ec = str(e["end"]).split(":")
+            e["_end"] = (int(el), int(ec))
+        out.append(e)
+    return tuple(out)
+
+
+def _path_matches(entry_path: str, wall_file: str) -> bool:
+    """``agent.py`` / ``src/agent.py`` / an absolute path match the wall file by
+    trailing path components."""
+    if not wall_file:
+        return True
+    ep = entry_path.replace("\\", "/").strip("/")
+    wf = os.path.abspath(wall_file).replace("\\", "/")
+    return wf == ep or wf.endswith("/" + ep)
 
 
 def _coerce_spec(spec) -> LoweringSpec:
@@ -189,6 +276,14 @@ def _coerce_spec(spec) -> LoweringSpec:
         emit=str(spec.get("emit", "inline") or "inline"),
         candidate_module_root=str(spec.get("candidate_module_root", "") or ""),
         candidates=tuple(spec.get("candidates", ()) or ()),
+        wall_positions=_coerce_positions(spec.get("wall_positions", ())),
+        reject_walls=tuple(spec.get("reject_walls", ()) or ()),
+        wall_files=tuple(spec.get("wall_files", ()) or ()),
+        exclude_paths=tuple(spec.get("exclude_paths", ()) or ()),
+        dispatch_impl_map=_coerce_impl_map(spec.get("dispatch_impl_map", ())),
+        # review M10: the key's presence (not its content) decides whether the
+        # built-in map applies — a plan writes it even when empty
+        impl_map_source=str(spec.get("impl_map_source") or ("spec" if "dispatch_impl_map" in spec else "default")),
         _legacy=legacy,
     )
 
@@ -289,7 +384,15 @@ def _iter_py(src_root):
 
 
 def _index_defs(src_root, mod_root: str = "") -> Dict[str, list]:
-    """short callable name -> list of links.Candidate. Codebase-wide."""
+    """short callable name -> list of links.Candidate. Codebase-wide: class
+    methods and module-level functions only.
+
+    Defs nested inside functions are NOT indexed here. The former
+    ``include_nested`` branch had no caller and indexed a doubly nested def
+    twice (once per enclosing function -> a spurious ``ambiguous_refs``
+    entry); it was removed (review minor, dispatch_lowering). A nested def
+    reaches a wall through anchoring (``anchoring.py`` marks it
+    ``importable=False``) and the link is then recorded as ``phantom``."""
     from links import Candidate, module_of
     by_short: Dict[str, list] = defaultdict(list)
     for p, tree in _iter_py(src_root):
@@ -411,6 +514,8 @@ def collect_candidates(src_root, spec) -> List["Candidate"]:
             if not f.endswith(".py"):
                 continue
             path = os.path.join(root, f)
+            if any(x and x in path for x in sp.exclude_paths):
+                continue
             try:
                 tree = ast.parse(open(path).read())
             except Exception:
@@ -578,20 +683,79 @@ def _find_walls_general(tree, sp: LoweringSpec) -> List[ast.Call]:
     return uniq
 
 
-def find_walls(tree, spec) -> List[ast.Call]:
+def _entries_for_file(sp: LoweringSpec, wall_file: str) -> List[dict]:
+    return [e for e in sp.wall_positions if _path_matches(e["_path"], wall_file)]
+
+
+def _find_walls_positions(tree, sp: LoweringSpec, wall_file: str):
+    """Pinned walls (plan.json): (calls, unmatched entries, call -> entry).
+    A position is matched exactly (start line+col, preferring the recorded end
+    span or callee text, else the outermost call there); if the file drifted,
+    by line + callee text, then by line + what general detection would flag,
+    then the first call on the line."""
+    by_pos: Dict[Tuple[int, int], List[ast.Call]] = defaultdict(list)
+    by_line: Dict[int, List[ast.Call]] = defaultdict(list)
+    for n in _walk_source(tree):
+        if isinstance(n, ast.Call):
+            by_pos[(n.lineno, n.col_offset)].append(n)
+            by_line[n.lineno].append(n)
+    general = None
+    calls, unmatched, meta = [], [], {}
+    for e in _entries_for_file(sp, wall_file):
+        line, col, callee = e["_line"], e["_col"], e.get("callee")
+        pick = None
+        cands = by_pos.get((line, col), []) if col is not None else []
+        if cands:
+            if e.get("_end"):
+                pick = next((c for c in cands if (c.end_lineno, c.end_col_offset) == tuple(e["_end"])), None)
+            if pick is None and callee:
+                pick = next((c for c in cands if ast.unparse(c.func) == callee), None)
+            if pick is None:
+                pick = max(cands, key=lambda c: ((c.end_lineno or 0), (c.end_col_offset or 0)))
+        if pick is None:
+            on_line = by_line.get(line, [])
+            if callee:
+                pick = next((c for c in on_line if ast.unparse(c.func) == callee), None)
+            if pick is None and on_line:
+                if general is None:
+                    wide = LoweringSpec(**{**sp.__dict__, "wall_positions": (), "detect_subscript": True,
+                                           "detect_getattr": True, "detect_higher_order": True,
+                                           "detect_boolop": True})
+                    general = {id(c) for c in _find_walls_general(tree, wide)}
+                pick = next((c for c in on_line if id(c) in general), None) or on_line[0]
+        if pick is None:
+            unmatched.append(e)
+            continue
+        if id(pick) not in meta:
+            calls.append(pick)
+            meta[id(pick)] = e
+    return calls, unmatched, meta
+
+
+def find_walls_ex(tree, spec, wall_file: str = ""):
+    """(walls, unmatched position entries, id(call) -> position entry)."""
     sp = _coerce_spec(spec)
+    if sp.wall_positions:
+        return _find_walls_positions(tree, sp, wall_file)
     if sp._legacy:
         hint = (sp.resolver_hints[0] if sp.resolver_hints else "").lower()
-        return _find_walls_legacy(tree, hint)
-    return _find_walls_general(tree, sp)
+        return _find_walls_legacy(tree, hint), [], {}
+    return _find_walls_general(tree, sp), [], {}
 
-def find_walls_with_scope(tree, spec):
-    """Return (walls, chain) where chain[id(wall)] is the list of enclosing
-    FunctionDefs from innermost to outermost. Lexical scope: a closure sees its
-    own locals AND every enclosing scope, so taint sources are collected from
-    the whole chain. Framework-agnostic — depends only on nesting structure."""
+
+def find_walls(tree, spec, wall_file: str = "") -> List[ast.Call]:
+    return find_walls_ex(tree, spec, wall_file)[0]
+
+
+def find_walls_with_scope(tree, spec, wall_file: str = ""):
+    """Return (walls, chain, unmatched, meta) where chain[id(wall)] is the list
+    of enclosing FunctionDefs from innermost to outermost. Lexical scope: a
+    closure sees its own locals AND every enclosing scope, so taint sources are
+    collected from the whole chain. Framework-agnostic — depends only on
+    nesting structure. ``unmatched`` / ``meta`` come from pinned
+    ``wall_positions`` (empty otherwise)."""
     sp = _coerce_spec(spec)
-    walls = find_walls(tree, sp)
+    walls, unmatched, meta = find_walls_ex(tree, sp, wall_file)
     wall_ids = {id(w) for w in walls}
     chain = {wid: [] for wid in wall_ids}
 
@@ -605,7 +769,44 @@ def find_walls_with_scope(tree, spec):
                 visit(child, stack)
 
     visit(tree, [])
-    return walls, chain
+    return walls, chain, unmatched, meta
+
+
+def describe_walls_ex(source, spec, wall_file: str = "") -> List[dict]:
+    """Diagnostics with positions: one dict per detected wall — line, col, end,
+    idiom, callee, the enclosing qualname (Class.method / outer.inner) and the
+    statement kind — plus ``unmatched`` entries for pinned positions the file
+    no longer has a call at."""
+    sp = _coerce_spec(spec)
+    tree = ast.parse(source)
+    walls, chain, unmatched, meta = find_walls_with_scope(tree, sp, wall_file)
+    owners: Dict[int, str] = {}
+
+    def visit(node, stack):
+        if isinstance(node, ast.Call):
+            owners[id(node)] = ".".join(stack)
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                visit(child, stack + [child.name])
+            else:
+                visit(child, stack)
+    visit(tree, [])
+    import links as L
+    stmts, _chains = L._stmt_map(tree)
+    bindings = L._runtime_bindings(tree)
+    out = []
+    for call in walls:
+        st = stmts.get(id(call))
+        out.append({"line": call.lineno, "col": call.col_offset,
+                    "end_line": call.end_lineno, "end_col": call.end_col_offset,
+                    "idiom": L._idiom_of(call, sp, chain.get(id(call)) or [], bindings),
+                    "callee": ast.unparse(call.func), "qualname": owners.get(id(call), ""),
+                    "stmt_kind": type(st).__name__ if st is not None else "",
+                    "pinned": bool(meta.get(id(call)))})
+    for e in unmatched:
+        out.append({"line": e["_line"], "col": e["_col"], "callee": e.get("callee", ""),
+                    "idiom": "?", "unmatched": True, "at": e["at"]})
+    return out
 
 
 def describe_walls(source, spec):
@@ -956,22 +1157,26 @@ class LoweringResult:
 
 def lower_wall_file_ex(source, candidates, spec, *, wall_file: str = "",
                        registry_index=None, links=None, redirect=None,
-                       id_offset: int = 0, id_prefix: str = "") -> LoweringResult:
+                       id_offset: int = 0, id_prefix: str = "", src_root: str = "") -> LoweringResult:
     """Full-information lowering: returns the rewritten source plus the wall and
     link records and statistics. ``links`` (pre-built, e.g. loaded from a
     hand-written ``links.json``) bypasses candidate joining; otherwise
     ``links.build_links`` is used. ``redirect`` is a shared
-    ``RedirectModuleBuilder`` for ``emit='redirector'`` across several files."""
+    ``RedirectModuleBuilder`` for ``emit='redirector'`` across several files.
+    ``src_root`` (review C1 / K1): the records' ``file`` and the ``wall=``
+    header tag name the wall file relative to it, never by basename."""
     import links as L
     sp = _coerce_spec(spec)
     cands = L.coerce_candidates(candidates)
     if links is None:
         walls, lnks, stats = L.build_links(source, wall_file, cands, sp,
                                            registry_index=registry_index,
-                                           id_offset=id_offset, id_prefix=id_prefix)
+                                           id_offset=id_offset, id_prefix=id_prefix,
+                                           src_root=src_root)
     else:
         walls, lnks, stats = _adopt_links(source, wall_file, links, sp,
-                                          id_offset=id_offset, id_prefix=id_prefix)
+                                          id_offset=id_offset, id_prefix=id_prefix,
+                                          src_root=src_root)
     lowered = [l for l in lnks if l.status == "lowered"]
     if not lowered:
         return LoweringResult(source, walls, lnks, stats)
@@ -1100,26 +1305,57 @@ def lower_wall_file_ex(source, candidates, spec, *, wall_file: str = "",
                           redirect_module=own_builder.render() if own_builder else "")
 
 
-def _adopt_links(source, wall_file, links, sp, id_offset: int = 0, id_prefix: str = ""):
+def _adopt_links(source, wall_file, links, sp, id_offset: int = 0, id_prefix: str = "", src_root: str = ""):
     """Attach externally supplied links (hand-written / loaded) to the walls
     detected in ``source``, matched by line number — the ``ICCLink.linkWithTarget``
     ordinal remap: the link names *where* the wall is, we find the call unit.
     Links are copied, so one provider object can be offered to several wall
-    files without the last file's adoption overwriting the others' state."""
+    files without the last file's adoption overwriting the others' state.
+
+    A link's ``file`` is compared with the wall file's src_root-relative path
+    (review C1 / K1) — or its absolute path — never by basename: an entry for
+    ``prompts/base.py`` must not be adopted by ``chains/base.py``. A link
+    without ``file`` applies to every wall file. Within a file the wall is
+    found by ``(line, col)`` when the link carries ``col``; a col-less link on
+    a line holding several walls is ambiguous and stays phantom (review C1:
+    litellm weights_biases.py:72 col 24/79, vanna base.py:1685) instead of
+    landing on whichever wall was detected last."""
     import copy
     import links as L
     walls, _auto, stats = L.build_links(source, wall_file, [], sp,
-                                        id_offset=id_offset, id_prefix=id_prefix)
-    by_line = {w.line: w for w in walls}
-    base = os.path.basename(wall_file) if wall_file else "<source>"
+                                        id_offset=id_offset, id_prefix=id_prefix,
+                                        src_root=src_root)
+    by_line: dict = {}
+    by_pos: dict = {}
+    for w in walls:
+        by_line.setdefault(w.line, []).append(w)
+        by_pos[(w.line, w.col)] = w
+    base = L.wall_file_key(wall_file, src_root) if hasattr(L, "wall_file_key") else (
+        os.path.basename(wall_file) if wall_file else "<source>")
+    wf_abs = os.path.abspath(wall_file) if wall_file else ""
     out = []
     for src_link in links:
-        if src_link.file and os.path.basename(src_link.file) != base:
+        lf = (src_link.file or "").replace("\\", "/")
+        if lf and lf != base and not (os.path.isabs(src_link.file) and os.path.abspath(src_link.file) == wf_abs):
             continue
         l = copy.deepcopy(src_link)
-        w = by_line.get(l.line)
+        col = int(getattr(l, "col", 0) or 0)
+        same_line = by_line.get(l.line, [])
+        if col:
+            w = by_pos.get((l.line, col))
+        elif len(same_line) > 1:
+            # review C1: several walls on this line — a link naming only the line
+            # cannot pick one; refuse rather than overwrite
+            w = None
+            l.status, l.reason = "phantom", (f"ambiguous wall line {base}:{l.line} "
+                                              f"({len(same_line)} walls at cols {[x.col for x in same_line]}: give col)")
+            stats.links_phantom += 1
+            out.append(l)
+            continue
+        else:
+            w = same_line[0] if same_line else None
         if w is None:
-            l.status, l.reason = "phantom", f"no wall detected at {base}:{l.line}"
+            l.status, l.reason = "phantom", f"no wall detected at {base}:{l.line}" + (f":{col}" if col else "")
             stats.links_phantom += 1
             out.append(l)
             continue
@@ -1128,7 +1364,7 @@ def _adopt_links(source, wall_file, links, sp, id_offset: int = 0, id_prefix: st
             stats.links_phantom += 1
             out.append(l)
             continue
-        l.wall_id, l.file = w.id, base
+        l.wall_id, l.file, l.col = w.id, base, w.col
         if l.status == "lowered":
             w.status, w.reason = "resolved", ""
             stats.links_lowered += 1

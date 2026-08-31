@@ -1,0 +1,13 @@
+{"file_version":3,"config":{"repo":"/tmp/ctaudit_m1_bindings/cond_A"}}
+{"kind":"function","data":{"name":"dict.__getitem__"}}
+{"kind":"function","data":{"name":"dict.values"}}
+{"kind":"function","data":{"name":"list.__init__"}}
+{"kind":"function","data":{"name":"object.__init__"}}
+{"kind":"function","data":{"name":"subprocess.run"}}
+{"kind":"function","data":{"name":"app.Agent.step"}}
+{"kind":"function","data":{"name":"app.lambda_call"}}
+{"kind":"function","data":{"name":"app.llm_decide"}}
+{"kind":"function","data":{"name":"app.resolved_then_comprehension"}}
+{"kind":"function","data":{"name":"tools.$toplevel"}}
+{"kind":"function","data":{"name":"tools.resolve"}}
+{"kind":"function","data":{"name":"tools.run_shell"}}

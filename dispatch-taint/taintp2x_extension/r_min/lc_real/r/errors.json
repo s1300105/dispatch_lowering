@@ -1,0 +1,1 @@
+[{"line": 1399, "column": 16, "stop_line": 1399, "stop_column": 39, "path": "src/langchain_classic/agents/agent.py", "code": 5001, "name": "Possible RemoteCodeExecution:", "description": "Possible RemoteCodeExecution: [5001]: User specified data may reach a code execution sink", "define": "langchain_classic.agents.agent.AgentExecutor._perform_agent_action"}]

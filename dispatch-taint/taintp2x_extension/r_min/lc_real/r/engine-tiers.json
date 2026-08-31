@@ -1,0 +1,38 @@
+{
+ "kind": "engine_tiers",
+ "generated_by": "engine_walls.extract",
+ "note": "T2 / T3 membership of the excerpt's callables as scanned on the full tree; scan() unions it in because the excerpt keeps no caller records",
+ "t2": [
+  "langchain_classic.agents.agent.AgentExecutor._call",
+  "langchain_classic.agents.agent.AgentExecutor._iter_next_step",
+  "langchain_classic.agents.agent.AgentExecutor._perform_agent_action",
+  "langchain_classic.agents.agent.AgentExecutor._take_next_step"
+ ],
+ "reach": [
+  "langchain_classic.agents.agent.Agent._construct_scratchpad",
+  "langchain_classic.agents.agent.Agent.get_full_inputs",
+  "langchain_classic.agents.agent.Agent.plan",
+  "langchain_classic.agents.agent.Agent.return_stopped_response",
+  "langchain_classic.agents.agent.Agent.tool_run_logging_kwargs",
+  "langchain_classic.agents.agent.AgentExecutor._consume_next_step",
+  "langchain_classic.agents.agent.AgentExecutor._get_tool_return",
+  "langchain_classic.agents.agent.AgentExecutor._prepare_intermediate_steps",
+  "langchain_classic.agents.agent.AgentExecutor._return",
+  "langchain_classic.agents.agent.AgentExecutor._should_continue",
+  "langchain_classic.agents.agent.BaseMultiActionAgent.return_stopped_response",
+  "langchain_classic.agents.agent.BaseSingleActionAgent.return_stopped_response",
+  "langchain_classic.agents.agent.LLMSingleActionAgent.plan",
+  "langchain_classic.agents.agent.LLMSingleActionAgent.tool_run_logging_kwargs",
+  "langchain_classic.agents.agent.RunnableAgent.plan",
+  "langchain_classic.agents.agent.RunnableMultiActionAgent.plan",
+  "langchain_core.agents.AgentAction.__init__",
+  "langchain_core.agents.AgentFinish.__init__",
+  "langchain_core.callbacks.manager.CallbackManagerForChainRun.on_agent_action",
+  "langchain_core.callbacks.manager.CallbackManagerForChainRun.on_agent_finish",
+  "langchain_core.callbacks.manager.ParentRunManager.get_child",
+  "langchain_core.runnables.base.Runnable.stream",
+  "langchain_core.runnables.config.ensure_config",
+  "langchain_core.tools.base.BaseTool.run",
+  "langchain_core.utils.input.get_color_mapping"
+ ]
+}

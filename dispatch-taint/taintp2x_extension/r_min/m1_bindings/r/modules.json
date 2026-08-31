@@ -1,0 +1,4 @@
+{"file_version":3,"config":{"repo":"/tmp/ctaudit_m1_bindings/cond_A"}}
+{"kind":"module","data":{"name":"tools","path":"/tmp/ctaudit_m1_bindings/cond_A/src/tools.py"}}
+{"kind":"module","data":{"name":"subprocess","path":"/home/yudai/Project/research/Master_Project/dispatch-taint-system/.venv/lib/pyre_check/typeshed/stdlib/subprocess.pyi"}}
+{"kind":"module","data":{"name":"app","path":"/tmp/ctaudit_m1_bindings/cond_A/src/app.py"}}

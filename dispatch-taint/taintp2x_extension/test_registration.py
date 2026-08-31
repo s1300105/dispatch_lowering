@@ -151,6 +151,92 @@ try:
     check("registry index: static dict literal trusted", reg.get("REGISTRY") == frozenset({"k1", "dict_fn"}))
     open(os.path.join(GENERAL, "mut.py"), "w").write('MUT = {"a": deco_a}\nMUT["b"] = deco_b\n')
     check("registry index: mutated registry untrusted", "MUT" not in L.index_registries(GENERAL))
+
+    # (E) review C4 / K6: the lowering stage scans the wall tree (cond_B/src, a
+    # COPY of the candidate tree) next to the candidate tree — the same dict
+    # literal seen through two roots must count as one binding
+    copy_dir = os.path.join(root, "general_copy")
+    shutil.copytree(GENERAL, copy_dir)
+    check("registry index: a copied tree as a second root does not untrust the registry (K6)",
+          L.index_registries([GENERAL, copy_dir]) == L.index_registries([GENERAL])
+          and L.index_registries([GENERAL, copy_dir]).get("REGISTRY") == frozenset({"k1", "dict_fn"}))
+    check("registry index: a copied wall FILE as an extra root counts once (K6)",
+          L.index_registries([GENERAL, os.path.join(copy_dir, "wiring.py")]).get("REGISTRY") == frozenset({"k1", "dict_fn"}))
+    # a genuinely different second definition (other members) still untrusts
+    other = os.path.join(root, "other_pkg")
+    os.makedirs(other)
+    open(os.path.join(other, "reg2.py"), "w").write('REGISTRY = {"k9": never_registered}\n')
+    check("registry index: a different definition under another root still untrusts",
+          "REGISTRY" not in L.index_registries([GENERAL, other]))
+
+    # (F) review C6 item 6: a relative import among BoolOp members is resolved
+    # against the wall module; a target with no file under the root is a phantom
+    check("relative import: level resolved against the wall module",
+          L.resolve_relative_module("impl", 1, "/r/pkg/sub/walls.py", "pkg.sub.walls") == "pkg.sub.impl"
+          and L.resolve_relative_module("x", 2, "/r/pkg/sub/walls.py", "pkg.sub.walls") == "pkg.x"
+          and L.resolve_relative_module(None, 1, "/r/pkg/sub/__init__.py", "pkg.sub") == "pkg.sub"
+          and L.resolve_relative_module("impl", 3, "/r/pkg/sub/walls.py", "pkg.sub.walls") == "")
+    rel_root = os.path.join(root, "relimp")
+    os.makedirs(os.path.join(rel_root, "pkg"))
+    open(os.path.join(rel_root, "pkg", "__init__.py"), "w").write("")
+    open(os.path.join(rel_root, "pkg", "impl.py"), "w").write("def a(x): ...\n")
+    wall_src = "from .impl import a\nfrom .missing import b\n\ndef run(x, h=None):\n    f = a or b\n    f(x)\n"
+    wall_path = os.path.join(rel_root, "pkg", "walls.py")
+    open(wall_path, "w").write(wall_src)
+    walls_r, links_r, _st = L.build_links(wall_src, wall_path, [], {"detect_boolop": True, "detect_subscript": False,
+                                                                    "detect_getattr": False, "detect_higher_order": False},
+                                          src_root=rel_root)
+    by_name = {l.target.name: l for l in links_r}
+    print("  relative-import links:", [(l.target.name, l.target.module, l.status) for l in links_r])
+    check("relative import: `from .impl import a` -> module pkg.impl, lowered",
+          by_name.get("a") is not None and by_name["a"].target.module == "pkg.impl" and by_name["a"].status == "lowered")
+    check("relative import: `from .missing import b` -> not under src_root -> phantom",
+          by_name.get("b") is not None and by_name["b"].target.module == "pkg.missing"
+          and by_name["b"].status == "phantom" and not by_name["b"].target.importable)
+    check("K1: WallRecord.file / DispatchLink.file are src_root-relative POSIX paths",
+          walls_r and walls_r[0].file == "pkg/walls.py" and all(l.file == "pkg/walls.py" for l in links_r))
+    # K4: dump_links(extra=) lands at the top level
+    lp2 = os.path.join(root, "links_extra.json")
+    L.dump_links(lp2, walls_r, links_r, _st, extra={"tool_version": {"combined": "abc"}})
+    check("K4: dump_links(extra=) merged into the top-level JSON",
+          json.load(open(lp2)).get("tool_version") == {"combined": "abc"})
+
+    # (G) review M1 (links side): a receiver that SELECTS the callee at the call
+    # site itself -- ``self.tools[name].run(args)`` (Subscript), ``getattr(o, k).m(x)``,
+    # ``(a or b).m(x)`` (BoolOp) -- pinned by an engine wall_positions entry is a
+    # method wall: idiom 'method_call' and is_method_wall True (the wall's
+    # arguments go through the receiver's dispatch method, not the target's
+    # signature). links._inline_receiver reverted to ``return False`` turned
+    # them into 'higher_order' / False while every suite stayed green.
+    m1_root = os.path.join(root, "m1")
+    os.makedirs(os.path.join(m1_root, "pkg"))
+    m1_src = ("class Agent:\n"
+              "    def go(self, name, args, o, k, a, b, x):\n"
+              "        r1 = self.tools[name].run(args)\n"
+              "        r2 = getattr(o, k).m(x)\n"
+              "        r3 = (a or b).m(x)\n"
+              "        return r1, r2, r3\n")
+    m1_path = os.path.join(m1_root, "pkg", "walls.py")
+    open(m1_path, "w").write(m1_src)
+    m1_pins = [{"at": f"pkg/walls.py:{ln}:13", "callee": c, "accept": True, "origin": "engine",
+                "engine_status": "unresolved:UnknownCallCallee", "engine_tier": "T1", "confidence": "confirmed"}
+               for ln, c in ((3, "self.tools[name].run"), (4, "getattr(o, k).m"), (5, "(a or b).m"))]
+    m1_walls, _m1_links, m1_st = L.build_links(
+        m1_src, m1_path, [], {"wall_positions": m1_pins, "detect_subscript": False, "detect_getattr": False,
+                              "detect_boolop": False, "detect_higher_order": False}, src_root=m1_root)
+    m1_by_line = {w.line: w for w in m1_walls}
+    print("  M1 inline receivers:", [(w.line, w.callee, w.idiom, w.is_method_wall) for w in m1_walls])
+    check("M1 (links): the three inline-receiver walls are matched by their engine pins (none unmatched)",
+          sorted(m1_by_line) == [3, 4, 5] and m1_st.walls_unmatched == 0 and m1_st.walls_detected == 3
+          and all(w.origin == "engine" for w in m1_walls))
+    check("M1 (links): self.tools[name].run(args) -> idiom method_call, is_method_wall True",
+          m1_by_line.get(3) is not None and m1_by_line[3].idiom == "method_call" and m1_by_line[3].is_method_wall is True)
+    check("M1 (links): getattr(o, k).m(x) -> idiom method_call, is_method_wall True",
+          m1_by_line.get(4) is not None and m1_by_line[4].idiom == "method_call" and m1_by_line[4].is_method_wall is True)
+    check("M1 (links): (a or b).m(x) -> idiom method_call, is_method_wall True",
+          m1_by_line.get(5) is not None and m1_by_line[5].idiom == "method_call" and m1_by_line[5].is_method_wall is True)
+    check("M1 (links): walls_by_idiom counts the three as method_call, never higher_order",
+          m1_st.walls_by_idiom.get("method_call") == 3 and "higher_order" not in m1_st.walls_by_idiom)
 finally:
     shutil.rmtree(root, ignore_errors=True)
 

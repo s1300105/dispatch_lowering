@@ -168,7 +168,7 @@ print("callable 別:")
 for c, n in callables.items():
     print(f"  {c}: {n} 件")
 PY
-echo "--- 到達した (sink 種別, sink メソッド) の組（期待: 5 組）---"
+echo "--- 到達した sink の組: SINK_PAIRS=(sink 種別, issue callable; K5) / SINK_FIRST_HOPS=(sink 種別, 第一呼び出し先; legacy 指標, 期待: 5 組) ---"
 python3 "$HERE/ablation_helpers.py" count "$WORK/cond_B/r/taint-output.json" | sed -n '/^SINK_PAIRS/,$p'
 
 # ---- 7. まとめ ---------------------------------------------------------------

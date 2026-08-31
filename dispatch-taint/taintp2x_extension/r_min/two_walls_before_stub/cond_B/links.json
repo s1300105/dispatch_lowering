@@ -1,0 +1,134 @@
+{
+  "walls": [
+    {
+      "id": "W0",
+      "file": "app.py",
+      "line": 14,
+      "end_line": 14,
+      "idiom": "subscript",
+      "callee": "REGISTRY[name]",
+      "stmt_line": 14,
+      "stmt_end_line": 14,
+      "stmt_kind": "Assign",
+      "chain_line": 0,
+      "registry": "REGISTRY",
+      "members": [
+        "echo",
+        "run_shell",
+        "shell"
+      ],
+      "assign_target": "result",
+      "is_method_wall": false,
+      "in_async": false,
+      "taint_args": [
+        "args"
+      ],
+      "status": "resolved",
+      "reason": "",
+      "col": 17,
+      "resolver": "REGISTRY",
+      "key_expr": "name",
+      "engine_status": "",
+      "engine_reason": "",
+      "engine_tier": "",
+      "origin": "ast",
+      "confidence": "",
+      "lowered_line": 20
+    }
+  ],
+  "links": [
+    {
+      "id": "L0",
+      "wall_id": "W0",
+      "file": "app.py",
+      "line": 14,
+      "target": {
+        "cls": null,
+        "name": "run_shell",
+        "params": [
+          "cmd"
+        ],
+        "kwonly": [],
+        "has_varargs": false,
+        "has_kwargs": false,
+        "module": "tools",
+        "path": "/tmp/ctaudit_bench_two_walls_before_stub_u45adgh4/inline/two_walls_before_stub/src/tools.py",
+        "lineno": 4,
+        "is_async": false,
+        "decorated": false,
+        "origin": "registration",
+        "match_level": 2,
+        "forward": [],
+        "evidence": "",
+        "importable": true
+      },
+      "match_level": 1,
+      "status": "lowered",
+      "reason": "",
+      "taint_args": [
+        "args"
+      ],
+      "redirector": "",
+      "lowered_line": 16
+    },
+    {
+      "id": "L1",
+      "wall_id": "W0",
+      "file": "app.py",
+      "line": 14,
+      "target": {
+        "cls": null,
+        "name": "echo",
+        "params": [
+          "msg"
+        ],
+        "kwonly": [],
+        "has_varargs": false,
+        "has_kwargs": false,
+        "module": "tools",
+        "path": "/tmp/ctaudit_bench_two_walls_before_stub_u45adgh4/inline/two_walls_before_stub/src/tools.py",
+        "lineno": 8,
+        "is_async": false,
+        "decorated": false,
+        "origin": "registration",
+        "match_level": 2,
+        "forward": [],
+        "evidence": "",
+        "importable": true
+      },
+      "match_level": 1,
+      "status": "lowered",
+      "reason": "",
+      "taint_args": [
+        "args"
+      ],
+      "redirector": "",
+      "lowered_line": 18
+    }
+  ],
+  "stats": {
+    "files": 1,
+    "walls_detected": 1,
+    "walls_by_idiom": {
+      "subscript": 1
+    },
+    "walls_skipped_no_args": 0,
+    "walls_rejected": 0,
+    "walls_unmatched": 0,
+    "walls_by_engine_status": {},
+    "walls_by_origin": {
+      "ast": 1
+    },
+    "candidates_total": 2,
+    "links_built": 2,
+    "links_lowered": 2,
+    "links_filtered_registry": 0,
+    "links_filtered_level": 0,
+    "links_unreasonable": 0,
+    "links_no_args": 0,
+    "links_phantom": 0,
+    "lines_added": 6,
+    "redirectors": 0,
+    "unresolved_refs": []
+  }
+}

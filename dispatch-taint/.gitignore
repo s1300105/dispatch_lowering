@@ -17,6 +17,8 @@ env/
 
 # ===== Pysa 解析結果（再生成可能・巨大: ablation_check/r=101M, cond_*/r=各40M） =====
 **/r/
+# ... but the committed r_min excerpts keep their engine artifacts (tests read them)
+!taintp2x_extension/r_min/**/r/
 ablation_out/
 *.log
 
@@ -35,3 +37,6 @@ ablation_out/
 .idea/
 .vscode/
 *.code-workspace
+
+# ===== benchmark runner work dir (fetched trees, cond_*, r/) =====
+benchmark_out/

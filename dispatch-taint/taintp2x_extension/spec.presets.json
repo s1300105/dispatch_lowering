@@ -1,35 +1,342 @@
 {
-  "_note": "Each preset is a complete LoweringSpec dict. Copy the one matching your target into SPEC_JSON for run_ablation.sh. Presence of any general key opts into general mode; the autogpt preset uses the legacy keys, i.e. the original wall-detection and candidate-recovery rules (the emitted code is the current form).",
-
+  "_note": "Each preset is a complete LoweringSpec dict plus two catalogue blocks: `match` (what makes a tree use the framework: import roots / base classes / decorators — catalog.detect) and `dispatch` (the framework's dispatch methods and the impl methods they forward to — engine_walls S3, the IPCMethods.txt analogue). Copy the LoweringSpec part into SPEC_JSON for a hand-written run, or let draft.py derive it. Presence of any general key opts into general mode; the autogpt_legacy preset uses the legacy keys. dispatch rows are matched by dotted suffix: keep enough of the module path to make them framework-specific (BaseTool.__call__ exists in several frameworks). `match.imports` entries are dotted PREFIXES of imported modules (plus the imported name for `from m import n`): use a discriminating one (`app.tool`, `agents.function_tool`), never a bare top-level name that any project may have as its own package (`app`, `agents`) — review M4.",
   "autogpt_legacy": {
     "tool_decorator": "command",
-    "dispatch_resolver_hint": "command"
+    "dispatch_resolver_hint": "command",
+    "match": {
+      "imports": [
+        "forge",
+        "autogpt"
+      ],
+      "decorators": [
+        "command"
+      ]
+    }
   },
-
   "fastmcp": {
-    "tool_decorators": ["tool"],
-    "register_methods": ["add_tool"],
+    "tool_decorators": [
+      "tool"
+    ],
+    "register_methods": [
+      "add_tool"
+    ],
     "detect_subscript": true,
     "detect_getattr": true,
-    "detect_higher_order": true
+    "detect_higher_order": true,
+    "match": {
+      "imports": [
+        "mcp",
+        "fastmcp"
+      ],
+      "decorators": [
+        "tool"
+      ],
+      "base_classes": []
+    },
+    "dispatch": [
+      {
+        "api": "mcp.server.fastmcp.tools.tool_manager.ToolManager.call_tool",
+        "impl": [
+          "run"
+        ],
+        "base": "Tool"
+      },
+      {
+        "api": "mcp.server.fastmcp.tools.base.Tool.run",
+        "impl": [
+          "fn"
+        ],
+        "base": "Tool"
+      }
+    ]
   },
-
   "langchain": {
-    "tool_decorators": ["tool"],
-    "tool_list_names": ["tools"],
-    "tool_wrappers": ["Tool", "StructuredTool", "FunctionTool"],
-    "register_methods": ["add_tool", "register"]
+    "tool_decorators": [
+      "tool"
+    ],
+    "tool_list_names": [
+      "tools"
+    ],
+    "tool_wrappers": [
+      "Tool",
+      "StructuredTool",
+      "FunctionTool"
+    ],
+    "register_methods": [
+      "add_tool",
+      "register"
+    ],
+    "match": {
+      "imports": [
+        "langchain",
+        "langchain_core",
+        "langchain_classic",
+        "langchain_community"
+      ],
+      "base_classes": [
+        "BaseTool"
+      ],
+      "decorators": [
+        "tool"
+      ]
+    },
+    "dispatch": [
+      {
+        "api": "BaseTool.run",
+        "impl": [
+          "_run"
+        ]
+      },
+      {
+        "api": "BaseTool.arun",
+        "impl": [
+          "_arun"
+        ]
+      },
+      {
+        "api": "BaseTool.invoke",
+        "impl": [
+          "_run"
+        ]
+      },
+      {
+        "api": "BaseTool.ainvoke",
+        "impl": [
+          "_arun"
+        ]
+      }
+    ]
   },
-
   "openai_agents": {
-    "tool_decorators": ["function_tool"],
-    "tool_list_names": ["tools"],
-    "tool_wrappers": ["FunctionTool"]
+    "tool_decorators": [
+      "function_tool"
+    ],
+    "tool_list_names": [
+      "tools"
+    ],
+    "tool_wrappers": [
+      "FunctionTool"
+    ],
+    "match": {
+      "imports": [
+        "agents.tool",
+        "agents.run",
+        "agents.function_tool",
+        "agents.Runner",
+        "agents.RunContextWrapper"
+      ],
+      "decorators": [
+        "function_tool"
+      ]
+    },
+    "dispatch": [
+      {
+        "api": "FunctionTool.on_invoke_tool",
+        "impl": []
+      }
+    ]
   },
-
   "register_runtime": {
-    "register_methods": ["register", "register_function", "add_tool", "add_function"],
-    "tool_wrappers": ["Tool", "StructuredTool", "FunctionTool"],
-    "registry_vars": ["TOOLS", "REGISTRY", "FUNCTIONS"]
+    "register_methods": [
+      "register",
+      "register_function",
+      "add_tool",
+      "add_function"
+    ],
+    "tool_wrappers": [
+      "Tool",
+      "StructuredTool",
+      "FunctionTool"
+    ],
+    "registry_vars": [
+      "TOOLS",
+      "REGISTRY",
+      "FUNCTIONS"
+    ]
+  },
+  "autogpt": {
+    "tool_decorators": [
+      "command"
+    ],
+    "match": {
+      "imports": [
+        "forge",
+        "autogpt"
+      ],
+      "decorators": [
+        "command"
+      ]
+    }
+  },
+  "semantic_kernel": {
+    "tool_decorators": [
+      "kernel_function"
+    ],
+    "detect_boolop": true,
+    "detect_higher_order": false,
+    "detect_subscript": false,
+    "detect_getattr": false,
+    "match": {
+      "imports": [
+        "semantic_kernel"
+      ],
+      "decorators": [
+        "kernel_function"
+      ],
+      "base_classes": [
+        "KernelBaseModel"
+      ]
+    },
+    "dispatch": [
+      {
+        "api": "KernelFunction.invoke",
+        "impl": [
+          "_invoke_internal"
+        ],
+        "base": "KernelFunction"
+      },
+      {
+        "api": "KernelFunction.invoke_stream",
+        "impl": [
+          "_invoke_internal_stream"
+        ],
+        "base": "KernelFunction"
+      }
+    ]
+  },
+  "openmanus": {
+    "tool_base_classes": [
+      "BaseTool"
+    ],
+    "tool_impl_methods": [
+      "execute"
+    ],
+    "detect_subscript": true,
+    "detect_getattr": true,
+    "detect_higher_order": true,
+    "match": {
+      "imports": [
+        "app.tool",
+        "app.agent"
+      ],
+      "base_classes": [
+        "BaseTool",
+        "ToolCallAgent"
+      ]
+    },
+    "dispatch": [
+      {
+        "api": "app.tool.tool_collection.ToolCollection.execute",
+        "impl": [
+          "execute"
+        ],
+        "base": "BaseTool"
+      },
+      {
+        "api": "app.tool.base.BaseTool.__call__",
+        "impl": [
+          "execute"
+        ],
+        "base": "BaseTool"
+      }
+    ]
+  },
+  "llama_index": {
+    "tool_base_classes": [
+      "BaseTool",
+      "FunctionTool"
+    ],
+    "tool_impl_methods": [
+      "call",
+      "acall",
+      "__call__",
+      "_fn"
+    ],
+    "match": {
+      "imports": [
+        "llama_index"
+      ],
+      "base_classes": [
+        "BaseTool",
+        "FunctionTool"
+      ]
+    },
+    "dispatch": [
+      {
+        "api": "llama_index.core.tools.types.BaseTool.call",
+        "impl": [
+          "call",
+          "__call__"
+        ],
+        "base": "BaseTool"
+      },
+      {
+        "api": "llama_index.core.tools.types.BaseTool.acall",
+        "impl": [
+          "acall"
+        ],
+        "base": "BaseTool"
+      },
+      {
+        "api": "llama_index.core.tools.function_tool.FunctionTool.call",
+        "impl": [
+          "_fn"
+        ],
+        "base": "FunctionTool"
+      },
+      {
+        "api": "llama_index.tools.types.BaseTool.__call__",
+        "impl": [
+          "__call__",
+          "_fn"
+        ],
+        "base": "BaseTool"
+      },
+      {
+        "api": "llama_index.tools.types.BaseTool.call",
+        "impl": [
+          "call",
+          "__call__"
+        ],
+        "base": "BaseTool"
+      }
+    ]
+  },
+  "vanna": {
+    "scan_all_callables": false,
+    "match": {
+      "imports": [
+        "vanna"
+      ],
+      "base_classes": [
+        "VannaBase"
+      ]
+    },
+    "dispatch": []
+  },
+  "superagi": {
+    "tool_base_classes": [
+      "BaseTool"
+    ],
+    "tool_impl_methods": [
+      "_execute"
+    ],
+    "match": {
+      "imports": [
+        "superagi"
+      ],
+      "base_classes": [
+        "BaseTool"
+      ]
+    },
+    "dispatch": [
+      {
+        "api": "superagi.tools.base_tool.BaseTool.execute",
+        "impl": [
+          "_execute"
+        ],
+        "base": "BaseTool"
+      }
+    ]
   }
 }

@@ -1,0 +1,11 @@
+{"file_version":3,"config":{"repo":"/tmp/ctaudit_bench_two_walls_before_stub_u45adgh4/inline/two_walls_before_stub"}}
+{"kind":"model","data":{"callable":"app.llm_decide","filename":"src/app.py","callable_line":4,"sources":[{"kept":true}]}}
+{"kind":"model","data":{"callable":"subprocess.run","filename":"*","path":"/home/yudai/Project/research/Master_Project/dispatch-taint-system/.venv/lib/pyre_check/typeshed/stdlib/subprocess.pyi","callable_line":304,"modes":["Obscure"]}}
+{"kind":"model","data":{"callable":"tools.echo","filename":"src/tools.py","callable_line":8}}
+{"kind":"model","data":{"callable":"tools.run_shell","filename":"src/tools.py","callable_line":4}}
+{"kind":"model","data":{"callable":"app.Agent.step","filename":"src/app.py","callable_line":12,"sources":[{"line":13,"start":21,"end":39},{"line":20,"start":32,"end":36}]}}
+{"kind":"issue","data":{"callable":"app.Agent.step","code":5005,"line":21,"filename":"src/app.py"}}
+{"kind":"issue","data":{"callable":"app.Agent.step","code":5005,"line":16,"filename":"src/app.py"}}
+{"kind":"issue","data":{"callable":"app.Agent.step","code":5001,"line":21,"filename":"src/app.py"}}
+{"kind":"issue","data":{"callable":"app.Agent.step","code":5001,"line":16,"filename":"src/app.py"}}
+{"kind":"model","data":{"callable":"tools.ShellParser.parse","filename":"src/tools.py","callable_line":21}}

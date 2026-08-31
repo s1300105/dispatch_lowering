@@ -1,0 +1,13 @@
+{
+ "kind": "engine_tiers",
+ "generated_by": "engine_walls.extract",
+ "note": "T2 / T3 membership of the excerpt's callables as scanned on the full tree; scan() unions it in because the excerpt keeps no caller records",
+ "t2": [
+  "agent.Agent._execute_tool",
+  "agent.Agent.execute"
+ ],
+ "reach": [
+  "agent.Agent._get_command",
+  "agent.Agent._remove_disabled_commands"
+ ]
+}
